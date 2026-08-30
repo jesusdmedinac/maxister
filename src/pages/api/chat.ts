@@ -4,7 +4,7 @@ import { searchKnowledge, listCourses } from '../../lib/knowledge';
 import { streamChatWithMaxister } from '../../lib/agent';
 import path from 'node:path';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const body = await request.json();
     const { message, history = [] } = body;
@@ -16,9 +16,14 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    // Cloudflare Workers runtime environment fallback
+    const runtimeEnv = (locals as any)?.runtime?.env;
+    const apiKey = GEMINI_API_KEY || runtimeEnv?.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    const modelName = GEMINI_MODEL || runtimeEnv?.GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+
     const rootPath = path.resolve(process.cwd(), '../');
 
-    // Context Search across academy lessons
+    // Context Search across academy lessons (graceful fallback if local FS not present)
     let academyContext = '';
     try {
       const searchResults = await searchKnowledge(message, undefined, rootPath);
@@ -29,7 +34,9 @@ export const POST: APIRoute = async ({ request }) => {
           .join('\n\n');
       } else {
         const courses = await listCourses(rootPath);
-        academyContext = `Cursos disponibles: ` + courses.map((c) => `${c.title} (${c.lessons.length} lecciones)`).join(', ');
+        if (courses.length > 0) {
+          academyContext = `Cursos disponibles: ` + courses.map((c) => `${c.title} (${c.lessons.length} lecciones)`).join(', ');
+        }
       }
     } catch {
       // Continue without search context if any error
@@ -40,8 +47,8 @@ export const POST: APIRoute = async ({ request }) => {
       async start(controller) {
         try {
           const generator = streamChatWithMaxister({
-            apiKey: GEMINI_API_KEY,
-            model: GEMINI_MODEL,
+            apiKey,
+            model: modelName,
             academyContext,
             history,
             message,
@@ -52,7 +59,7 @@ export const POST: APIRoute = async ({ request }) => {
           }
           controller.close();
         } catch (err: any) {
-          controller.enqueue(encoder.encode(`\n\nError: ${err?.message}`));
+          controller.enqueue(encoder.encode(`\n\nError: ${err?.message || 'Error en streaming'}`));
           controller.close();
         }
       },
@@ -62,12 +69,11 @@ export const POST: APIRoute = async ({ request }) => {
       status: 200,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'Transfer-Encoding': 'chunked',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-transform',
       },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err?.message }), {
+    return new Response(JSON.stringify({ error: err?.message || 'Internal Server Error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
