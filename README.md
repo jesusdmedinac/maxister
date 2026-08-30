@@ -1,95 +1,118 @@
 # 🤖 Maxister (v2.0 MVP)
 
-**Maxister** es el tutor agéntico y compañero inteligente de Inteligencia Artificial de la academia **Desde0**. Está diseñado para brindar acompañamiento 24/7 a los estudiantes mediante el Método Socrático, memoria persistente de aprendizaje y consulta en vivo del temario y lecciones de la academia.
+**Maxister** is the intelligent AI tutor and conversational companion for the **Desde0 Academy** (https://desde0.jesusdmedinac.com). Designed to provide 24/7 personalized guidance, Maxister leverages the **Socratic Method**, persistent pedagogical memory, rich Markdown code rendering, and live curriculum grounding across all academy courses.
 
 ---
 
-## 🏗️ Arquitectura del Proyecto
+## 🏗️ Project Architecture
 
 ```
 maxister/
 ├── docs/
-│   └── features/                 # Especificaciones BDD en Gherkin (.feature)
+│   ├── features/                 # BDD Specifications in Gherkin (.feature)
+│   │   ├── knowledge_ingestion.feature
+│   │   ├── mcp_server.feature
+│   │   ├── socratic_agent.feature
+│   │   ├── student_memory.feature
+│   │   └── web_dashboard.feature
+│   └── SOCRATIC_PROMPT_RESEARCH.md # AI Tutoring & Socratic Prompt Benchmark Paper
 ├── src/
-│   ├── components/               # UI Dashboard en React
-│   │   ├── App.tsx               # Orquestador del Dashboard de 3 paneles
-│   │   ├── CurriculumSidebar.tsx # Explorador del temario y fases de lección
-│   │   ├── ChatRoom.tsx          # Sala de chat con streaming y atajos socráticos
-│   │   └── StudentProfileCard.tsx# Gestor de memoria y progreso del estudiante
+│   ├── components/               # React UI Components
+│   │   ├── App.tsx               # Minimalist ChatGPT-inspired chat studio
+│   │   └── MarkdownRenderer.tsx  # Rich GFM & PrismLight code highlighter with Copy button
 │   ├── layouts/
-│   │   └── Layout.astro          # Layout HTML base
+│   │   └── Layout.astro          # Base Astro HTML layout with dark theme
 │   ├── lib/
-│   │   ├── agent.ts              # Orquestador de Gemini con system prompt socrático
-│   │   ├── knowledge.ts          # Lector y parseador de lecciones MDX de Desde0
-│   │   └── memory.ts             # Almacén de perfiles y memoria de estudiantes
+│   │   ├── agent.ts              # 6-Module Socratic prompt engine & Gemini streaming
+│   │   ├── knowledge.ts          # Desde0 5-phase lesson parser & search engine
+│   │   └── memory.ts             # Student progress & persistent memory store
 │   ├── mcp/
-│   │   └── server.ts             # Servidor oficial Model Context Protocol (MCP)
-│   └── pages/
-│       ├── index.astro           # Página principal del Dashboard
-│       └── api/
-│           ├── chat.ts           # Endpoint de chat streaming con Gemini
-│           ├── courses.ts        # Endpoint para listar cursos y temarios
-│           ├── lesson.ts         # Endpoint para obtener fases de una lección
-│           └── memory.ts         # Endpoint de gestión de estudiantes
-└── test/                         # Suite de pruebas unitarias con Vitest
+│   │   └── server.ts             # Official Model Context Protocol (MCP) server
+│   ├── pages/
+│   │   ├── index.astro           # Single-page chat interface mount
+│   │   └── api/
+│   │       ├── chat.ts           # Real-time SSE/ReadableStream chat endpoint with Gemini
+│   │       ├── courses.ts        # REST API endpoint listing academy courses
+│   │       ├── lesson.ts         # REST API endpoint returning structured 5-phase lesson
+│   │       └── memory.ts         # REST API endpoint managing student profile & notes
+│   └── styles/
+│       └── global.css            # Tailwind directives & dark theme base styles
+└── test/                         # Comprehensive Vitest test suites
 ```
 
 ---
 
-## 🚀 Inicio Rápido
+## 🚀 Quick Start
 
-### 1. Instalar dependencias
+### 1. Install Dependencies
 ```bash
 pnpm install
 ```
 
-### 2. Configurar variables de entorno (Opcional)
-Crea un archivo `.env` o exporta tu clave de Gemini:
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env` and set your Google Gemini API key:
 ```bash
-GEMINI_API_KEY="tu-api-key-de-gemini"
+cp .env.example .env
 ```
-*(Si no configuras una API key, Maxister correrá en **Modo Simulación Socrático** para desarrollo local)*.
 
-### 3. Iniciar el servidor de desarrollo web
+```env
+GEMINI_API_KEY="your-google-gemini-api-key"
+GEMINI_MODEL="gemini-flash-lite-latest"
+```
+*(If no API key is provided, Maxister operates in **Socratic Simulation Mode** for local testing)*.
+
+### 3. Start Development Server
 ```bash
 pnpm dev
 ```
-Abre [http://localhost:4321](http://localhost:4321) en tu navegador para interactuar con el Dashboard de Maxister.
+Open [http://localhost:4321](http://localhost:4321) in your browser to interact with Maxister.
 
 ---
 
-## 🧪 Ejecución de Pruebas
+## 🧪 Testing & Build Verification
 
-Ejecutar la suite completa de pruebas unitarias con Vitest:
+Run the automated test suite with Vitest:
 ```bash
 pnpm test
 ```
 
-Compilar para producción:
+Build for production:
 ```bash
 pnpm build
 ```
 
 ---
 
-## 🔌 Uso como Servidor MCP (Cursor, VS Code, Antigravity)
+## 🔌 Model Context Protocol (MCP) Server (Cursor, VS Code, Antigravity)
 
-Para conectar Maxister como servidor MCP en tu editor favorito, agrega la siguiente configuración a tu `mcpServers` en `settings.json`:
+To connect Maxister as an MCP tool provider in your IDE, add this configuration to your `settings.json` under `mcpServers`:
 
 ```json
 {
   "mcpServers": {
     "desde0-maxister": {
       "command": "pnpm",
-      "args": ["--prefix", "/Users/jesusdmedinac/proyectos/JesusDMedinaC/Desde0/maxister", "mcp"]
+      "args": ["--prefix", "/path/to/maxister", "mcp"]
     }
   }
 }
 ```
 
-### Herramientas MCP expuestas:
-* `get_academy_curriculum`: Consulta el temario completo de todos los cursos.
-* `get_lesson_content`: Obtiene las 5 fases estructuradas de cualquier lección.
-* `search_academy_knowledge`: Busca temas o errores en el catálogo de lecciones.
-* `get_student_memory`: Consulta el perfil y progreso del alumno.
-* `update_student_progress`: Actualiza lección, conceptos dominados y notas pedagógicas.
+### Exposed MCP Tools:
+* `get_academy_curriculum`: Retrieves the full course catalog and lesson outlines.
+* `get_lesson_content`: Returns the structured 5 pedagogical phases of any lesson.
+* `search_academy_knowledge`: Semantic/keyword search across the academy knowledge base.
+* `get_student_memory`: Reads student progress, mastered skills, and tutor notes.
+* `update_student_progress`: Updates active lesson, mastered concepts, and diagnostic notes.
+
+---
+
+## ☁️ Deployment on Cloudflare Pages
+
+1. **Framework Preset:** Astro
+2. **Build Command:** `pnpm build`
+3. **Build Output Directory:** `dist`
+4. **Environment Variables:**
+   * `GEMINI_API_KEY`: Encrypted Gemini API key from AI Studio.
+   * `GEMINI_MODEL`: `gemini-flash-lite-latest`
+   * `NODE_VERSION`: `20`
