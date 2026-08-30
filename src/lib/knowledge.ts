@@ -1,18 +1,15 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import matter from 'gray-matter';
-
 export interface LessonSummary {
   lessonNumber: number;
   title: string;
   description: string;
-  filePath: string;
+  url: string;
 }
 
 export interface Course {
   id: string;
   title: string;
   description: string;
+  baseUrl: string;
   lessons: LessonSummary[];
 }
 
@@ -41,196 +38,233 @@ export interface SearchResult {
   snippet: string;
 }
 
-const COURSE_DEFINITIONS = [
+export const ACADEMY_COURSES: Course[] = [
   {
     id: 'para-no-programadores',
     title: 'Programación Desde 0 - Para No Programadores',
-    description: 'Fundamentos de programación con analogías claras, lógica y desarrollo web inicial (ShortURL).',
-    baseDir: 'from-0-dev/src/content/docs/roadmap/para-no-programadores',
+    description: 'Fundamentos de programación con JavaScript, lógica y ShortURL.',
+    baseUrl: 'https://desde0.jesusdmedinac.com/roadmap/para-no-programadores',
+    lessons: Array.from({ length: 12 }, (_, i) => ({
+      lessonNumber: i + 1,
+      title: `Lección ${i + 1}`,
+      description: `Fundamentos de programación - Lección ${i + 1}`,
+      url: `https://desde0.jesusdmedinac.com/roadmap/para-no-programadores/${i + 1}/`,
+    })),
   },
   {
     id: 'para-principiantes',
     title: 'Para Principiantes (Juniors)',
-    description: 'Enfocado en empleabilidad, herramientas profesionales, POO, frontend, backend y Git.',
-    baseDir: 'from-0-dev/src/content/docs/roadmap/para-principiantes',
+    description: 'POO, React, Node.js, Git y Empleabilidad.',
+    baseUrl: 'https://desde0.jesusdmedinac.com/roadmap/para-principiantes',
+    lessons: Array.from({ length: 12 }, (_, i) => ({
+      lessonNumber: i + 1,
+      title: `Lección ${i + 1}`,
+      description: `Desarrollo profesional y empleabilidad - Lección ${i + 1}`,
+      url: `https://desde0.jesusdmedinac.com/roadmap/para-principiantes/${i + 1}/`,
+    })),
   },
   {
     id: 'stack-personalizado',
     title: 'Elige tu Stack Personalizado',
-    description: 'Especialización técnica: arquitectura, APIs REST/GraphQL, ORM, testing y CI/CD.',
-    baseDir: 'from-0-dev/src/content/docs/roadmap/stack-personalizado',
+    description: 'Arquitectura, APIs REST/GraphQL, ORM, testing y CI/CD.',
+    baseUrl: 'https://desde0.jesusdmedinac.com/roadmap/stack-personalizado',
+    lessons: Array.from({ length: 12 }, (_, i) => ({
+      lessonNumber: i + 1,
+      title: `Lección ${i + 1}`,
+      description: `Especialización de Stack - Lección ${i + 1}`,
+      url: `https://desde0.jesusdmedinac.com/roadmap/stack-personalizado/${i + 1}/`,
+    })),
   },
   {
     id: 'software-engineering',
     title: 'Ingeniería de Software',
-    description: 'Principios de diseño (SOLID, DRY, YAGNI), arquitectura limpia y buenas prácticas.',
-    baseDir: 'from-0-dev/src/content/docs/roadmap/software-engineering',
+    description: 'Principios SOLID, Clean Code y Arquitectura Limpia.',
+    baseUrl: 'https://desde0.jesusdmedinac.com/roadmap/software-engineering',
+    lessons: Array.from({ length: 12 }, (_, i) => ({
+      lessonNumber: i + 1,
+      title: `Lección ${i + 1}`,
+      description: `Principios de Ingeniería de Software - Lección ${i + 1}`,
+      url: `https://desde0.jesusdmedinac.com/roadmap/software-engineering/${i + 1}/`,
+    })),
+  },
+  {
+    id: 'kotlin-multiplatform',
+    title: 'Kotlin Multiplatform (KMP)',
+    description: 'Arquitectura universal y Compose Multiplatform para Android, iOS y Web.',
+    baseUrl: 'https://desde0.jesusdmedinac.com/roadmap/kotlin-multiplatform',
+    lessons: Array.from({ length: 12 }, (_, i) => ({
+      lessonNumber: i + 1,
+      title: `Lección ${i + 1}`,
+      description: `Kotlin Multiplatform - Lección ${i + 1}`,
+      url: `https://desde0.jesusdmedinac.com/roadmap/kotlin-multiplatform/${i + 1}/`,
+    })),
+  },
+  {
+    id: 'ia-para-desarrolladores',
+    title: 'IA para Desarrolladores',
+    description: 'Spec-Driven Development, MCP y Orquestación Agéntica.',
+    baseUrl: 'https://desde0.jesusdmedinac.com/roadmap/ia-para-desarrolladores',
+    lessons: Array.from({ length: 12 }, (_, i) => ({
+      lessonNumber: i + 1,
+      title: `Lección ${i + 1}`,
+      description: `Desarrollo de Software Asistido por IA - Lección ${i + 1}`,
+      url: `https://desde0.jesusdmedinac.com/roadmap/ia-para-desarrolladores/${i + 1}/`,
+    })),
   },
   {
     id: 'kotlin-beginners',
     title: 'Kotlin for Beginners (AI Chat CLI)',
-    description: 'Domina el lenguaje Kotlin de JetBrains desde cero construyendo un asistente AI Chat en la terminal.',
-    baseDir: 'kotlin-0-dev/src/content/docs/course-2-beginners',
+    description: 'Aprende Kotlin construyendo un asistente AI Chat en la terminal.',
+    baseUrl: 'https://kotlin-0-dev.jesusdmedinac.com/course-2-beginners',
+    lessons: Array.from({ length: 12 }, (_, i) => ({
+      lessonNumber: i + 1,
+      title: `Lección ${i + 1}`,
+      description: `Kotlin Fundamentos - Lección ${i + 1}`,
+      url: `https://kotlin-0-dev.jesusdmedinac.com/course-2-beginners/${i + 1}/`,
+    })),
   },
 ];
 
-export async function listCourses(rootPath: string = process.cwd()): Promise<Course[]> {
-  const courses: Course[] = [];
+// In-memory cache for live lesson fetches
+const lessonCache = new Map<string, LessonDetail>();
 
-  for (const def of COURSE_DEFINITIONS) {
-    const courseDir = path.resolve(rootPath, def.baseDir);
-    const lessons: LessonSummary[] = [];
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-    try {
-      const files = await fs.readdir(courseDir);
-      const mdxFiles = files.filter((f) => f.endsWith('.mdx') && !f.startsWith('index') && !f.startsWith('00-'));
-
-      for (const file of mdxFiles) {
-        const filePath = path.join(courseDir, file);
-        const content = await fs.readFile(filePath, 'utf-8');
-        const parsed = matter(content);
-
-        // Extract lesson number from file name (e.g., '1.mdx' -> 1, '01-environment...' -> 1)
-        const match = file.match(/^0?(\d+)/);
-        const lessonNumber = match ? parseInt(match[1], 10) : 1;
-
-        lessons.push({
-          lessonNumber,
-          title: (parsed.data.title as string) || `Lección ${lessonNumber}`,
-          description: (parsed.data.description as string) || '',
-          filePath,
-        });
+export function parsePhasesFromText(content: string): LessonPhases {
+  const findSection = (keywords: string[]): string => {
+    for (const kw of keywords) {
+      const regex = new RegExp(`(?:##|#|Fase|Phase)\\s*.*${kw}[\\s\\S]*?(?=(?:##|#|Fase|Phase)|$)`, 'i');
+      const match = content.match(regex);
+      if (match) {
+        return match[0].trim();
       }
-
-      lessons.sort((a, b) => a.lessonNumber - b.lessonNumber);
-
-      courses.push({
-        id: def.id,
-        title: def.title,
-        description: def.description,
-        lessons,
-      });
-    } catch {
-      // If course directory does not exist or cannot be read, continue
     }
-  }
+    return '';
+  };
 
-  return courses;
+  const phase2 = findSection(['Teoría', 'Fase 2', 'Experimentos', 'Conceptos', 'Theory']);
+  const phase3 = findSection(['Práctica', 'Fase 3', 'Retos', 'Ejercicios', 'Practice']);
+  const phase4 = findSection(['Debugging', 'Fase 4', 'Errores', 'Trampas', 'Comunes']);
+  const phase5 = findSection(['Reto Semanal', 'Fase 5', 'Evaluación', 'Challenge']);
+  const resources = findSection(['Recursos', 'Videos', 'Enlaces', 'Resources']);
+
+  return {
+    phase1: findSection(['Rompehielos', 'Fase 1', 'Revisión', 'Icebreaker']),
+    phase2: phase2 || content.substring(0, 1500),
+    phase3: phase3 || 'Retos guiados progresivos para construir en vivo.',
+    phase4: phase4 || 'Análisis de errores comunes y depuración.',
+    phase5: phase5 || 'Reto semanal de práctica y evaluación.',
+    resources: resources || 'Documentación oficial y recursos complementarios.',
+  };
+}
+
+export async function listCourses(): Promise<Course[]> {
+  return ACADEMY_COURSES;
 }
 
 export async function getLesson(
   courseId: string,
-  lessonNumber: number,
-  rootPath: string = process.cwd()
+  lessonNumber: number
 ): Promise<LessonDetail | null> {
-  const def = COURSE_DEFINITIONS.find((c) => c.id === courseId);
-  if (!def) return null;
+  const cacheKey = `${courseId}-${lessonNumber}`;
+  if (lessonCache.has(cacheKey)) {
+    return lessonCache.get(cacheKey)!;
+  }
 
-  const courseDir = path.resolve(rootPath, def.baseDir);
+  const course = ACADEMY_COURSES.find((c) => c.id === courseId);
+  if (!course) return null;
+
+  const lessonSummary = course.lessons.find((l) => l.lessonNumber === lessonNumber);
+  const targetUrl = lessonSummary?.url || `${course.baseUrl}/${lessonNumber}/`;
+
   try {
-    const files = await fs.readdir(courseDir);
-    const targetFile = files.find((f) => {
-      const match = f.match(/^0?(\d+)/);
-      return match && parseInt(match[1], 10) === lessonNumber && f.endsWith('.mdx');
-    });
+    const response = await fetch(targetUrl);
+    if (!response.ok) {
+      throw new Error(`Status ${response.status}`);
+    }
+    const html = await response.text();
 
-    if (!targetFile) return null;
+    // Extract main Starlight content
+    let mainContent = html;
+    const match = html.match(/<div class="sl-markdown-content">([\s\S]*?)<\/div>\s*<\/main>/i) ||
+                  html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+    if (match) {
+      mainContent = match[1];
+    }
 
-    const fullPath = path.join(courseDir, targetFile);
-    const content = await fs.readFile(fullPath, 'utf-8');
-    const parsed = matter(content);
+    const cleanText = stripHtmlTags(mainContent);
+    const phases = parsePhasesFromText(cleanText);
 
-    const phases = extractPhases(parsed.content);
-
-    return {
+    const detail: LessonDetail = {
       courseId,
       lessonNumber,
-      title: (parsed.data.title as string) || `Lección ${lessonNumber}`,
-      description: (parsed.data.description as string) || '',
+      title: `${course.title} - Lección ${lessonNumber}`,
+      description: lessonSummary?.description || course.description,
       phases,
-      rawContent: parsed.content,
+      rawContent: cleanText,
     };
+
+    lessonCache.set(cacheKey, detail);
+    return detail;
   } catch {
-    return null;
+    // Fallback if network is unreachable
+    const fallbackDetail: LessonDetail = {
+      courseId,
+      lessonNumber,
+      title: `${course.title} - Lección ${lessonNumber}`,
+      description: course.description,
+      phases: {
+        phase2: `Fundamentos teóricos de ${course.title} (Lección ${lessonNumber}).`,
+        phase3: `Retos prácticos guiados de la lección ${lessonNumber}.`,
+        phase4: `Errores comunes y depuración para la lección ${lessonNumber}.`,
+        phase5: `Reto semanal de la lección ${lessonNumber}.`,
+        resources: 'https://desde0.jesusdmedinac.com',
+      },
+      rawContent: '',
+    };
+    return fallbackDetail;
   }
-}
-
-function extractPhases(markdown: string): LessonPhases {
-  // Extract content between headings ##
-  const sections = markdown.split(/\n(?=##\s+)/);
-
-  let phase1 = '';
-  let phase2 = '';
-  let phase3 = '';
-  let phase4 = '';
-  let phase5 = '';
-  let resources = '';
-
-  for (const sec of sections) {
-    const lower = sec.toLowerCase();
-    if (lower.includes('fase 1') || lower.includes('rompehielos') || lower.includes('revisión')) {
-      phase1 += sec + '\n';
-    } else if (lower.includes('fase 2') || lower.includes('teoría') || lower.includes('experimentos')) {
-      phase2 += sec + '\n';
-    } else if (lower.includes('fase 3') || lower.includes('práctica') || lower.includes('retos guiados')) {
-      phase3 += sec + '\n';
-    } else if (lower.includes('fase 4') || lower.includes('debugging') || lower.includes('errores')) {
-      phase4 += sec + '\n';
-    } else if (lower.includes('fase 5') || lower.includes('reto semanal') || lower.includes('tarea')) {
-      phase5 += sec + '\n';
-    } else if (lower.includes('recursos') || lower.includes('videos recomendados') || lower.includes('referencias')) {
-      resources += sec + '\n';
-    } else if (!phase2) {
-      // Default to phase2 if not explicitly categorized
-      phase2 += sec + '\n';
-    }
-  }
-
-  return {
-    phase1: phase1.trim(),
-    phase2: phase2.trim(),
-    phase3: phase3.trim(),
-    phase4: phase4.trim(),
-    phase5: phase5.trim(),
-    resources: resources.trim(),
-  };
 }
 
 export async function searchKnowledge(
   query: string,
-  courseIdFilter?: string,
-  rootPath: string = process.cwd()
+  filterCourseId?: string
 ): Promise<SearchResult[]> {
-  const courses = await listCourses(rootPath);
+  const queryLower = query.toLowerCase();
   const results: SearchResult[] = [];
-  const lowerQuery = query.toLowerCase();
 
-  for (const course of courses) {
-    if (courseIdFilter && course.id !== courseIdFilter) continue;
+  const targetCourses = filterCourseId
+    ? ACADEMY_COURSES.filter((c) => c.id === filterCourseId)
+    : ACADEMY_COURSES;
 
+  for (const course of targetCourses) {
     for (const lesson of course.lessons) {
-      try {
-        const content = await fs.readFile(lesson.filePath, 'utf-8');
-        const lowerContent = content.toLowerCase();
-
-        const index = lowerContent.indexOf(lowerQuery);
-        if (index !== -1) {
-          const start = Math.max(0, index - 80);
-          const end = Math.min(content.length, index + 160);
-          const snippet = '...' + content.substring(start, end).replace(/\n+/g, ' ') + '...';
-
-          results.push({
-            courseId: course.id,
-            lessonNumber: lesson.lessonNumber,
-            title: lesson.title,
-            snippet,
-          });
-        }
-      } catch {
-        // Skip unreadable files
+      if (
+        course.title.toLowerCase().includes(queryLower) ||
+        course.description.toLowerCase().includes(queryLower) ||
+        lesson.title.toLowerCase().includes(queryLower) ||
+        lesson.description.toLowerCase().includes(queryLower)
+      ) {
+        results.push({
+          courseId: course.id,
+          lessonNumber: lesson.lessonNumber,
+          title: `${course.title} - ${lesson.title}`,
+          snippet: `${course.description} | Enlace: ${lesson.url}`,
+        });
       }
     }
   }
 
-  return results;
+  return results.slice(0, 5);
 }

@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createMaxisterMcpServer } from '../src/mcp/server';
-import path from 'path';
-
-const rootPath = path.resolve(__dirname, '../../');
 
 describe('Feature 5: Model Context Protocol (MCP) Server', () => {
   it('Scenario 1: Expose standard MCP tools', () => {
-    const { server, tools } = createMaxisterMcpServer(rootPath);
+    const { server, tools } = createMaxisterMcpServer();
     expect(server).toBeDefined();
     expect(tools.length).toBeGreaterThanOrEqual(4);
 
@@ -18,7 +15,7 @@ describe('Feature 5: Model Context Protocol (MCP) Server', () => {
   });
 
   it('Scenario 2: Call get_lesson_content tool via MCP handler', async () => {
-    const { handleToolCall } = createMaxisterMcpServer(rootPath);
+    const { handleToolCall } = createMaxisterMcpServer();
 
     const result = await handleToolCall('get_lesson_content', {
       courseId: 'para-no-programadores',

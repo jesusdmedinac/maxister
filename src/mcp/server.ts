@@ -102,7 +102,6 @@ export const MCP_TOOLS: Tool[] = [
 ];
 
 export function createMaxisterMcpServer(
-  rootPath: string = process.cwd(),
   memoryStore: MemoryStore = defaultMemoryStore
 ) {
   const server = new Server(
@@ -120,7 +119,7 @@ export function createMaxisterMcpServer(
   async function handleToolCall(name: string, args: any) {
     try {
       if (name === 'get_academy_curriculum') {
-        const courses = await listCourses(rootPath);
+        const courses = await listCourses();
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(courses, null, 2) }],
         };
@@ -128,7 +127,7 @@ export function createMaxisterMcpServer(
 
       if (name === 'get_lesson_content') {
         const { courseId, lessonNumber } = args;
-        const lesson = await getLesson(courseId, Number(lessonNumber), rootPath);
+        const lesson = await getLesson(courseId, Number(lessonNumber));
         if (!lesson) {
           return {
             isError: true,
@@ -142,7 +141,7 @@ export function createMaxisterMcpServer(
 
       if (name === 'search_academy_knowledge') {
         const { query, courseId } = args;
-        const results = await searchKnowledge(query, courseId, rootPath);
+        const results = await searchKnowledge(query, courseId);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }],
         };

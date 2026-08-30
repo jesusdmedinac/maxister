@@ -26,11 +26,6 @@ export default defineConfig({
       },
     },
   },
-  vite: {
-    ssr: {
-      external: ['node:path', 'node:fs', 'node:fs/promises', 'gray-matter'],
-    },
-  },
   integrations: [
     react(),
     tailwind(),

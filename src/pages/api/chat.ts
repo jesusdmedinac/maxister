@@ -2,7 +2,6 @@ import type { APIRoute } from 'astro';
 import { GEMINI_API_KEY, GEMINI_MODEL } from 'astro:env/server';
 import { searchKnowledge, listCourses } from '../../lib/knowledge';
 import { streamChatWithMaxister } from '../../lib/agent';
-import path from 'node:path';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -21,19 +20,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const apiKey = GEMINI_API_KEY || runtimeEnv?.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     const modelName = GEMINI_MODEL || runtimeEnv?.GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 
-    const rootPath = path.resolve(process.cwd(), '../');
-
-    // Context Search across academy lessons (graceful fallback if local FS not present)
+    // Context Search across academy lessons
     let academyContext = '';
     try {
-      const searchResults = await searchKnowledge(message, undefined, rootPath);
+      const searchResults = await searchKnowledge(message);
       if (searchResults.length > 0) {
         academyContext = searchResults
           .slice(0, 3)
           .map((r) => `[Curso: ${r.courseId} | Lección ${r.lessonNumber}]: ${r.snippet}`)
           .join('\n\n');
       } else {
-        const courses = await listCourses(rootPath);
+        const courses = await listCourses();
         if (courses.length > 0) {
           academyContext = `Cursos disponibles: ` + courses.map((c) => `${c.title} (${c.lessons.length} lecciones)`).join(', ');
         }
