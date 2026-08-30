@@ -15,6 +15,7 @@ import {
   User,
   ExternalLink,
 } from 'lucide-react';
+import MarkdownRenderer from './MarkdownRenderer';
 import type { ChatMessage } from '../lib/agent';
 
 const SUGGESTIONS = [
@@ -229,13 +230,22 @@ export default function App() {
                     {isBot ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-white/50 mb-1">
-                      {isBot ? 'Maxister' : 'Tú'}
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <div className="text-xs font-semibold text-white/50 mb-1.5 flex items-center gap-1.5">
+                      <span>{isBot ? 'Maxister' : 'Tú'}</span>
+                      {isBot && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-paradiso-300 font-normal">
+                          Tutor
+                        </span>
+                      )}
                     </div>
-                    <div className="text-sm leading-relaxed text-[#ececec] whitespace-pre-wrap font-sans">
-                      {msg.text}
-                    </div>
+                    {isBot ? (
+                      <MarkdownRenderer content={msg.text} />
+                    ) : (
+                      <div className="text-sm leading-relaxed text-[#ececec] whitespace-pre-wrap font-sans">
+                        {msg.text}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
