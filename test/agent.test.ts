@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildSocraticPrompt } from '../src/lib/agent';
+import { buildSocraticPrompt, evaluatePedagogicalResponse } from '../src/lib/agent';
 import type { LessonDetail } from '../src/lib/knowledge';
 
-describe('Feature 3: Socratic AI Tutor Agent', () => {
+describe('Feature 3: Socratic AI Tutor Agent & 6-Module Prompt Engine', () => {
   const sampleLesson: LessonDetail = {
     courseId: 'para-no-programadores',
     lessonNumber: 2,
@@ -18,24 +18,42 @@ describe('Feature 3: Socratic AI Tutor Agent', () => {
     rawContent: '',
   };
 
-  it('Scenario 1: Inquire with contextual lesson grounding', () => {
+  it('Module 1 & 2: Inquire with contextual lesson grounding and anti-spoonfeeding guardrail', () => {
     const prompt = buildSocraticPrompt(sampleLesson);
     expect(prompt).toContain('Maxister');
     expect(prompt).toContain('para-no-programadores');
     expect(prompt).toContain('Lección: 2');
     expect(prompt).toContain('Conceptos Básicos y Fundamentos de JavaScript');
-    expect(prompt).toContain('Socrático');
+    expect(prompt).toContain('ESTRICTAMENTE PROHIBIDO entregar el código completo');
   });
 
-  it('Scenario 2: Request help on a coding challenge without receiving full solution', () => {
+  it('Module 3: Includes 3-tier progressive scaffolding instructions', () => {
     const prompt = buildSocraticPrompt(sampleLesson);
-    expect(prompt).toContain('PROHIBIDO entregar el código completo resuelto');
-    expect(prompt).toContain('formula preguntas guía');
+    expect(prompt).toContain('ANDAMIAJE PROGRESIVO EN 3 NIVELES');
+    expect(prompt).toContain('Nivel 1 (Pista Conceptual)');
+    expect(prompt).toContain('Nivel 2 (Lógica Algorítmica)');
+    expect(prompt).toContain('Nivel 3 (Pista de Sintaxis)');
   });
 
-  it('Scenario 3: Interactive debugging guidance for error messages', () => {
+  it('Module 4: Diagnostic debugging protocol for student errors', () => {
     const prompt = buildSocraticPrompt(sampleLesson);
-    expect(prompt.toLowerCase()).toContain('debugging');
-    expect(prompt).toContain('interpretar el mensaje de error');
+    expect(prompt).toContain('PROTOCOLO DE DEBUGGING DIAGNÓSTICO');
+    expect(prompt).toContain('Traduce el mensaje de error');
+  });
+
+  it('Module 5 & 6: The Why before the How and One Question at a Time rule', () => {
+    const prompt = buildSocraticPrompt(sampleLesson);
+    expect(prompt).toContain('EL "POR QUÉ" ANTES DEL "CÓMO"');
+    expect(prompt).toContain('UNA PREGUNTA A LA VEZ');
+  });
+
+  it('Evaluates compliant vs non-compliant pedagogical responses', () => {
+    const badResponse = 'Aquí tienes la solución completa: let x = 10;';
+    const badEval = evaluatePedagogicalResponse(badResponse);
+    expect(badEval.isCompliant).toBe(false);
+
+    const goodResponse = '¿Qué valor crees que tiene la variable en la línea 3 antes de ser modificada?';
+    const goodEval = evaluatePedagogicalResponse(goodResponse);
+    expect(goodEval.isCompliant).toBe(true);
   });
 });
