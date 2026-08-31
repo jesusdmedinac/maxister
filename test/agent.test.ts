@@ -24,27 +24,27 @@ describe('Feature 3: Socratic AI Tutor Agent & 6-Module Prompt Engine', () => {
     expect(prompt).toContain('para-no-programadores');
     expect(prompt).toContain('Lección: 2');
     expect(prompt).toContain('Conceptos Básicos y Fundamentos de JavaScript');
-    expect(prompt).toContain('ESTRICTAMENTE PROHIBIDO entregar el código completo');
+    expect(prompt).toContain('ANTI-SPOONFEEDING');
   });
 
-  it('Module 3: Includes 3-tier progressive scaffolding instructions', () => {
+  it('Module 3: Includes anti-fluff rules and directness constraints', () => {
     const prompt = buildSocraticPrompt(sampleLesson);
-    expect(prompt).toContain('ANDAMIAJE PROGRESIVO EN 3 NIVELES');
-    expect(prompt).toContain('Nivel 1 (Pista Conceptual)');
-    expect(prompt).toContain('Nivel 2 (Lógica Algorítmica)');
-    expect(prompt).toContain('Nivel 3 (Pista de Sintaxis)');
+    expect(prompt).toContain('ANTI-RELLENO');
+    expect(prompt).toContain('VE DIRECTO AL GRANO');
+    expect(prompt).toContain('LONGITUD CONCISA');
   });
 
   it('Module 4: Diagnostic debugging protocol for student errors', () => {
     const prompt = buildSocraticPrompt(sampleLesson);
-    expect(prompt).toContain('PROTOCOLO DE DEBUGGING DIAGNÓSTICO');
-    expect(prompt).toContain('Traduce el mensaje de error');
+    expect(prompt).toContain('DEBUGGING DIAGNÓSTICO');
+    expect(prompt).toContain('Traduce el error a lenguaje claro');
   });
 
-  it('Module 5 & 6: The Why before the How and One Question at a Time rule', () => {
+  it('Module 5: Includes Few-Shot examples for concise Socratic responses', () => {
     const prompt = buildSocraticPrompt(sampleLesson);
-    expect(prompt).toContain('EL "POR QUÉ" ANTES DEL "CÓMO"');
-    expect(prompt).toContain('UNA PREGUNTA A LA VEZ');
+    expect(prompt).toContain('FEW-SHOT EXAMPLES');
+    expect(prompt).toContain('EJEMPLO 1');
+    expect(prompt).toContain('EJEMPLO 2');
   });
 
   it('Evaluates compliant vs non-compliant pedagogical responses', () => {
