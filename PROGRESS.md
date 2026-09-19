@@ -34,3 +34,24 @@
 - [x] Scenario: Inspect session state and log out terminating session
 - [x] Scenario: Authenticated student creates a shared chat snapshot for the teacher
 - [x] Scenario: Human teacher accesses and inspects a shared student chat via unique link
+
+## 🏛️ Feature 7: Teacher Governance & Backoffice Management (`teacher_governance.feature`)
+- [x] Scenario: Root admin signs in with credentials from Cloudflare environment variables
+- [x] Scenario: Root admin provisions a new verified teacher
+- [x] Scenario: Regular student is barred with 403 Forbidden from backoffice
+- [x] Scenario: Root admin deactivates a teacher account and revokes active sessions
+- [x] Scenario: Root admin manages, qualifies, and blocks entries in TeacherFeedbackStore
+
+## 💬 Feature 8: Multi-Thread Conversation History & 1-to-1 Shared Rooms (`conversation_history.feature`)
+- [x] Scenario: Student creates multiple conversation threads and switches between them in sidebar
+- [x] Scenario: Student escalates thread into a shared room, automatically transitioning default mode to AI Auto
+- [x] Scenario: Teacher views separate sections for personal chats and student shared consultations
+- [x] Scenario: Teacher claims room locking it 1-to-1 and reveals AI Mode selector
+- [x] Scenario: Assigned teacher releases room; messages persist and room reverts to open claim state
+
+## 🤝 Feature 9: Tripartite Interactive Chat & Strategic Teacher Feedback Memory (`tripartite_chat.feature`)
+- [x] Scenario: Single student chat enforces AI On and hides AI Mode selector
+- [x] Scenario: In AI Off mode, Maxister listens in the background without generating spoken output
+- [x] Scenario: In AI Auto mode, Maxister responds when a participant explicitly refers to it
+- [x] Scenario: Maxister automatically detects teacher pedagogical directive, saves it to TeacherFeedbackStore, and displays an explicit badge
+- [x] Scenario: Strategic teacher feedback tagged by student, teacher, and course is retrieved and applied in subsequent inquiries

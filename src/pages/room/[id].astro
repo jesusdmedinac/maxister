@@ -1,0 +1,44 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import TripartiteRoom from '../../components/TripartiteRoom';
+import { defaultAuthStore } from '../../lib/auth';
+import { defaultConversationStore } from '../../lib/conversations';
+
+const { id } = Astro.params;
+const thread = id ? await defaultConversationStore.getThread(id) : null;
+
+const sessionToken = Astro.cookies.get('maxister_session')?.value;
+let user = null;
+if (sessionToken) {
+  user = await defaultAuthStore.validateSession(sessionToken);
+}
+
+const initialMessages = thread ? await defaultConversationStore.getMessages(thread.id) : [];
+---
+
+<Layout title={thread ? `Sala: ${thread.title} — Maxister` : "Sala no encontrada"}>
+  {thread ? (
+    <TripartiteRoom
+      client:only="react"
+      initialThread={thread}
+      initialMessages={initialMessages}
+      user={user}
+    />
+  ) : (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#181818] text-[#ececec] px-4 text-center">
+      <div className="size-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-paradiso-300 text-2xl font-bold">
+        ?
+      </div>
+      <h1 className="text-xl font-bold text-white mb-2">Consulta no encontrada</h1>
+      <p className="text-sm text-white/60 max-w-md mb-6">
+        Esta sala de consulta no existe o el enlace es incorrecto.
+      </p>
+      <a
+        href="/"
+        className="px-4 py-2 rounded-xl bg-paradiso hover:bg-paradiso-600 text-white text-xs font-semibold transition"
+      >
+        Ir a Maxister
+      </a>
+    </div>
+  )}
+</Layout>

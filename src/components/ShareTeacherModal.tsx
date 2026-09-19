@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Share2, Copy, Check, ExternalLink, Mail, MessageSquare, Loader2, Sparkles } from 'lucide-react';
+import { X, Share2, Copy, Check, ExternalLink, Mail, MessageSquare, Loader2, Sparkles, MessageCircle } from 'lucide-react';
 import type { UserAccount } from '../lib/auth';
 import type { ChatMessage } from '../lib/agent';
 
@@ -9,40 +9,44 @@ interface Props {
   user: UserAccount | null;
   messages: ChatMessage[];
   activeCourse?: string;
+  threadId?: string;
 }
 
-export default function ShareTeacherModal({ isOpen, onClose, user, messages, activeCourse }: Props) {
+export default function ShareTeacherModal({ isOpen, onClose, user, messages, activeCourse, threadId }: Props) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && !shareUrl && user && messages.length > 0) {
+    if (isOpen && !shareUrl && user) {
       handleCreateShare();
     }
-  }, [isOpen, user, messages]);
+  }, [isOpen, user, threadId]);
 
   const handleCreateShare = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const res = await fetch('/api/chat/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages,
-          courseId: activeCourse || user?.activeCourse,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Error al generar enlace de consulta');
+      if (threadId) {
+        const res = await fetch(`/api/conversations/${threadId}/share`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al compartir sala');
+        setShareUrl(data.roomUrl);
+      } else {
+        const res = await fetch('/api/chat/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages,
+            courseId: activeCourse || user?.activeCourse,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al generar enlace');
+        setShareUrl(data.shareUrl);
       }
-
-      setShareUrl(data.shareUrl);
     } catch (err: any) {
       setError(err.message || 'No se pudo generar el enlace');
     } finally {
@@ -86,7 +90,7 @@ export default function ShareTeacherModal({ isOpen, onClose, user, messages, act
           <div>
             <h2 className="text-lg font-bold text-white">Compartir con el Profesor</h2>
             <p className="text-xs text-white/60">
-              Escala tu conversación a un humano para resolver dudas complejas
+              Crea una sala interactiva donde tú, el profesor y Maxister interactúan juntos
             </p>
           </div>
         </div>
@@ -100,12 +104,12 @@ export default function ShareTeacherModal({ isOpen, onClose, user, messages, act
         {isLoading ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/60 text-xs">
             <Loader2 className="w-6 h-6 animate-spin text-paradiso" />
-            <span>Generando enlace con el contexto de tu consulta...</span>
+            <span>Configurando sala compartida con el profesor...</span>
           </div>
         ) : (
           <div className="space-y-4">
             <p className="text-xs text-white/70 leading-relaxed">
-              Hemos preparado una instantánea de tu sesión con Maxister. El profesor podrá ver tu código y las pruebas que hiciste sin que tengas que explicar todo desde cero.
+              Hemos preparado la sala para esta consulta. Cualquier profesor verificado de la academia podrá unirse, atender tu duda y guiarte en vivo junto con Maxister.
             </p>
 
             {/* Share URL Box */}
@@ -125,10 +129,21 @@ export default function ShareTeacherModal({ isOpen, onClose, user, messages, act
               </button>
             </div>
 
+            {/* Direct Link Button */}
+            {shareUrl && (
+              <a
+                href={shareUrl}
+                className="w-full py-2.5 px-4 rounded-xl bg-paradiso hover:bg-paradiso-600 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-paradiso/20 transition"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Entrar a la Sala Interactiva</span>
+              </a>
+            )}
+
             {/* Teacher Contact Actions */}
             <div className="space-y-2 pt-2">
               <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider block">
-                Canales de contacto directo
+                Canales de notificación directa
               </span>
 
               <a
@@ -141,7 +156,7 @@ export default function ShareTeacherModal({ isOpen, onClose, user, messages, act
                   </div>
                   <div className="text-left">
                     <p className="font-semibold text-white">Enviar Correo a Jesús Medina</p>
-                    <p className="text-[11px] text-white/50">Incluye tu duda y el enlace de Maxister</p>
+                    <p className="text-[11px] text-white/50">Incluye tu duda y el enlace de la sala</p>
                   </div>
                 </div>
                 <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-white transition" />

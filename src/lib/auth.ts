@@ -1,8 +1,13 @@
+export type UserRole = 'student' | 'teacher' | 'root_admin';
+
 export interface UserAccount {
   id: string;
   name: string;
   email: string;
+  role: UserRole;
   activeCourse: string;
+  assignedCourses?: string[];
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -15,6 +20,7 @@ interface UserRecord extends UserAccount {
 export interface Session {
   token: string;
   userId: string;
+  role: UserRole;
   createdAt: string;
   expiresAt: string;
 }
@@ -129,7 +135,10 @@ export function sanitizeUser(record: UserRecord): UserAccount {
     id: record.id,
     name: record.name,
     email: record.email,
+    role: record.role,
     activeCourse: record.activeCourse,
+    assignedCourses: record.assignedCourses,
+    isActive: record.isActive,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -171,7 +180,9 @@ export class InMemoryAuthStore {
       id,
       name: params.name.trim(),
       email: normalizedEmail,
+      role: 'student',
       activeCourse: params.activeCourse || 'para-no-programadores',
+      isActive: true,
       passwordHash: hash,
       salt,
       createdAt: now,
@@ -181,7 +192,7 @@ export class InMemoryAuthStore {
     this.usersByEmail.set(normalizedEmail, record);
     this.usersById.set(id, record);
 
-    const session = await this.createSession(id);
+    const session = await this.createSession(id, 'student');
 
     return {
       success: true,
@@ -201,6 +212,13 @@ export class InMemoryAuthStore {
       };
     }
 
+    if (!record.isActive) {
+      return {
+        success: false,
+        error: 'Account is deactivated. Please contact administrator.',
+      };
+    }
+
     const isValid = await verifyPassword(password, record.passwordHash, record.salt);
     if (!isValid) {
       return {
@@ -209,7 +227,7 @@ export class InMemoryAuthStore {
       };
     }
 
-    const session = await this.createSession(record.id);
+    const session = await this.createSession(record.id, record.role);
 
     return {
       success: true,
@@ -218,7 +236,133 @@ export class InMemoryAuthStore {
     };
   }
 
-  async createSession(userId: string): Promise<Session> {
+  async authenticateRootAdmin(email: string, password: string): Promise<AuthResult> {
+    const rootEmail = process.env.ROOT_ADMIN_EMAIL || '';
+    const rootPassword = process.env.ROOT_ADMIN_PASSWORD || '';
+
+    if (!rootEmail || !rootPassword) {
+      return {
+        success: false,
+        error: 'Root administrator is not configured on this environment.',
+      };
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (
+      normalizedEmail !== rootEmail.trim().toLowerCase() ||
+      !timingSafeEqual(password, rootPassword)
+    ) {
+      return {
+        success: false,
+        error: 'Invalid root administrator credentials.',
+      };
+    }
+
+    const rootUser: UserAccount = {
+      id: 'root_admin_singleton',
+      name: 'Root Administrator',
+      email: rootEmail,
+      role: 'root_admin',
+      activeCourse: 'all',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const session = await this.createSession(rootUser.id, 'root_admin');
+
+    return {
+      success: true,
+      user: rootUser,
+      sessionToken: session.token,
+    };
+  }
+
+  canAccessBackoffice(user: UserAccount | null): boolean {
+    return user !== null && user.role === 'root_admin';
+  }
+
+  async createTeacher(params: {
+    name: string;
+    email: string;
+    password: string;
+    assignedCourses?: string[];
+  }): Promise<AuthResult> {
+    const normalizedEmail = params.email.trim().toLowerCase();
+
+    if (this.usersByEmail.has(normalizedEmail)) {
+      return {
+        success: false,
+        error: 'An account with this email already exists.',
+      };
+    }
+
+    if (!params.password || params.password.length < 6) {
+      return {
+        success: false,
+        error: 'Password must be at least 6 characters long.',
+      };
+    }
+
+    const { hash, salt } = await hashPassword(params.password);
+    const id = `tea_${generateSessionToken().substring(0, 12)}`;
+    const now = new Date().toISOString();
+
+    const record: UserRecord = {
+      id,
+      name: params.name.trim(),
+      email: normalizedEmail,
+      role: 'teacher',
+      activeCourse: params.assignedCourses?.[0] || 'para-no-programadores',
+      assignedCourses: params.assignedCourses || ['para-no-programadores'],
+      isActive: true,
+      passwordHash: hash,
+      salt,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.usersByEmail.set(normalizedEmail, record);
+    this.usersById.set(id, record);
+
+    return {
+      success: true,
+      user: sanitizeUser(record),
+    };
+  }
+
+  async listTeachers(): Promise<UserAccount[]> {
+    const teachers: UserAccount[] = [];
+    for (const record of this.usersById.values()) {
+      if (record.role === 'teacher') {
+        teachers.push(sanitizeUser(record));
+      }
+    }
+    return teachers;
+  }
+
+  async setTeacherStatus(teacherId: string, isActive: boolean): Promise<boolean> {
+    const record = this.usersById.get(teacherId);
+    if (!record || record.role !== 'teacher') return false;
+
+    record.isActive = isActive;
+    record.updatedAt = new Date().toISOString();
+    this.usersById.set(teacherId, record);
+    this.usersByEmail.set(record.email, record);
+
+    // If deactivated, revoke all active sessions for this teacher
+    if (!isActive) {
+      for (const [token, session] of this.sessions.entries()) {
+        if (session.userId === teacherId) {
+          this.sessions.delete(token);
+        }
+      }
+    }
+
+    return true;
+  }
+
+  async createSession(userId: string, role: UserRole = 'student'): Promise<Session> {
     const token = generateSessionToken();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
@@ -226,6 +370,7 @@ export class InMemoryAuthStore {
     const session: Session = {
       token,
       userId,
+      role,
       createdAt: now.toISOString(),
       expiresAt,
     };
@@ -244,8 +389,25 @@ export class InMemoryAuthStore {
       return null;
     }
 
+    if (session.userId === 'root_admin_singleton') {
+      const rootEmail = process.env.ROOT_ADMIN_EMAIL || 'admin@desde0.dev';
+      return {
+        id: 'root_admin_singleton',
+        name: 'Root Administrator',
+        email: rootEmail,
+        role: 'root_admin',
+        activeCourse: 'all',
+        isActive: true,
+        createdAt: session.createdAt,
+        updatedAt: session.createdAt,
+      };
+    }
+
     const userRecord = this.usersById.get(session.userId);
-    if (!userRecord) return null;
+    if (!userRecord || !userRecord.isActive) {
+      this.sessions.delete(token);
+      return null;
+    }
 
     return sanitizeUser(userRecord);
   }

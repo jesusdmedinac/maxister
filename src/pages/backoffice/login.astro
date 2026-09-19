@@ -1,0 +1,92 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Backoffice Acceso Root — Maxister">
+  <div className="flex min-h-screen items-center justify-center bg-[#141414] px-4 font-sans text-[#ececec]">
+    <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#1c1c1c] p-7 shadow-2xl">
+      <div className="mb-6 text-center">
+        <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-paradiso/20 text-paradiso-300 font-bold">
+          🏛️
+        </div>
+        <h1 className="text-xl font-bold text-white">Backoffice Root Admin</h1>
+        <p className="mt-1 text-xs text-white/50">
+          Acceso exclusivo para administración central de profesores y memoria estratégica
+        </p>
+      </div>
+
+      <form id="login-form" className="space-y-4">
+        <div id="error-msg" className="hidden rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400"></div>
+
+        <div>
+          <label className="block text-xs font-medium text-white/70 mb-1">Correo de Administrador</label>
+          <input
+            type="email"
+            id="email"
+            required
+            placeholder="admin@desde0.dev"
+            className="w-full rounded-xl border border-white/10 bg-[#121212] px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none focus:border-paradiso transition"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-white/70 mb-1">Contraseña Root</label>
+          <input
+            type="password"
+            id="password"
+            required
+            placeholder="••••••••••••"
+            className="w-full rounded-xl border border-white/10 bg-[#121212] px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none focus:border-paradiso transition"
+          />
+        </div>
+
+        <button
+          type="submit"
+          id="submit-btn"
+          className="w-full rounded-xl bg-paradiso py-2.5 text-xs font-bold text-white shadow-lg shadow-paradiso/20 hover:bg-paradiso-600 transition"
+        >
+          Ingresar al Backoffice
+        </button>
+      </form>
+
+      <div className="mt-6 text-center text-[11px] text-white/40">
+        <a href="/" className="hover:text-paradiso-300 transition">← Volver al chat de Maxister</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const errorMsg = document.getElementById('error-msg');
+    const submitBtn = document.getElementById('submit-btn');
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg?.classList.add('hidden');
+      if (submitBtn) submitBtn.setAttribute('disabled', 'true');
+
+      const email = (document.getElementById('email') as HTMLInputElement)?.value;
+      const password = (document.getElementById('password') as HTMLInputElement)?.value;
+
+      try {
+        const res = await fetch('/api/backoffice/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Credenciales inválidas');
+
+        window.location.href = '/backoffice';
+      } catch (err: any) {
+        if (errorMsg) {
+          errorMsg.textContent = err.message || 'Error de acceso';
+          errorMsg.classList.remove('hidden');
+        }
+      } finally {
+        if (submitBtn) submitBtn.removeAttribute('disabled');
+      }
+    });
+  </script>
+</Layout>

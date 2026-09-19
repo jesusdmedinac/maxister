@@ -1,14 +1,144 @@
 import { GoogleGenAI } from '@google/genai';
 import type { LessonDetail } from './knowledge';
+import type { TeacherFeedbackEntry, DirectiveType, AiParticipationMode } from './conversations';
 
 export interface ChatMessage {
   role: 'user' | 'model' | 'system';
   text: string;
 }
 
+export interface SocraticPromptOptions {
+  strategicFeedback?: TeacherFeedbackEntry[];
+  isTeacherPresent?: boolean;
+  teacherName?: string;
+  aiMode?: AiParticipationMode;
+}
+
+export function shouldAiRespond(params: {
+  aiMode: AiParticipationMode;
+  message: string;
+  isTeacherPresent: boolean;
+}): boolean {
+  // If no teacher is present, AI is strictly mandatory On
+  if (!params.isTeacherPresent) {
+    return true;
+  }
+
+  if (params.aiMode === 'off') {
+    return false;
+  }
+
+  if (params.aiMode === 'on') {
+    return true;
+  }
+
+  // In AI Auto mode:
+  // 1. If addressed to Maxister directly -> true
+  // 2. If addressed to human teacher explicitly -> false
+  const lower = params.message.toLowerCase();
+  const mentionsMaxister =
+    lower.includes('maxister') ||
+    lower.includes('@maxister') ||
+    lower.includes('ia') ||
+    lower.includes('asistente') ||
+    lower.includes('tutor virtual');
+
+  const mentionsTeacher =
+    lower.includes('profe') ||
+    lower.includes('profesor') ||
+    lower.includes('maestro');
+
+  if (mentionsTeacher && !mentionsMaxister) {
+    return false;
+  }
+
+  if (mentionsMaxister) {
+    return true;
+  }
+
+  // Auto-detect technical or coding questions
+  const hasQuestion = params.message.includes('?') || params.message.includes('¿');
+  const hasCodeSnippet =
+    params.message.includes('```') ||
+    params.message.includes('const') ||
+    params.message.includes('val') ||
+    params.message.includes('var') ||
+    params.message.includes('function') ||
+    params.message.includes('fun') ||
+    params.message.includes('class');
+
+  return hasQuestion || hasCodeSnippet;
+}
+
+export function detectTeacherDirective(text: string): {
+  isDirective: boolean;
+  title?: string;
+  directiveContent?: string;
+  type?: DirectiveType;
+  tags?: string[];
+} {
+  const lower = text.toLowerCase();
+  const directiveIndicators = [
+    'no uses',
+    'no use',
+    'explica con',
+    'explica usando',
+    'analogía',
+    'analogia',
+    'caja fuerte',
+    'regla:',
+    'directriz',
+    'en kotlin siempre',
+    'en javascript siempre',
+    'recuerda explicar',
+    'en lugar de',
+    'enseña primero',
+    'ojo con',
+    'error común',
+  ];
+
+  const matches = directiveIndicators.filter((kw) => lower.includes(kw));
+  if (matches.length === 0) {
+    return { isDirective: false };
+  }
+
+  let type: DirectiveType = 'pedagogical_tip';
+  if (lower.includes('analogía') || lower.includes('analogia') || lower.includes('caja fuerte')) {
+    type = 'recommended_analogy';
+  } else if (lower.includes('no uses') || lower.includes('evita') || lower.includes('prohibido')) {
+    type = 'forbidden_anti_pattern';
+  } else if (lower.includes('error') || lower.includes('corrección') || lower.includes('en lugar de')) {
+    type = 'code_correction';
+  }
+
+  // Extract topic tags
+  const candidateTags = [
+    'kotlin',
+    'val',
+    'var',
+    'javascript',
+    'react',
+    'poo',
+    'async',
+    'promesas',
+    'memoria',
+    'bucles',
+  ];
+  const tags = candidateTags.filter((t) => lower.includes(t));
+
+  return {
+    isDirective: true,
+    title: `Pauta docente: ${text.substring(0, 50)}...`,
+    directiveContent: text,
+    type,
+    tags: tags.length > 0 ? tags : ['pedagogía'],
+  };
+}
+
 export function buildSocraticPrompt(
   lesson?: LessonDetail | null,
-  academyContext?: string
+  academyContext?: string,
+  options?: SocraticPromptOptions
 ): string {
   let contextSnippet = '';
   if (lesson) {
@@ -35,6 +165,28 @@ ${academyContext}
 `;
   }
 
+  let teacherPresenceSnippet = '';
+  if (options?.isTeacherPresent) {
+    teacherPresenceSnippet = `
+=== PARTICIPACIÓN DOCENTE EN LA SALA ===
+El profesor humano (${options.teacherName || 'Profesor de Desde0'}) está presente en esta conversación.
+- Si el profesor interviene, apoya su línea pedagógica sin contradecirle.
+- Si el profesor te da una instrucción directa, acátala con prioridad absoluta.
+`;
+  }
+
+  let feedbackSnippet = '';
+  if (options?.strategicFeedback && options.strategicFeedback.length > 0) {
+    const feedbackItems = options.strategicFeedback
+      .map((f) => `- [${f.title}] (${f.directiveType}): ${f.directiveContent}`)
+      .join('\n');
+    feedbackSnippet = `
+=== DIRECTRICES Y RECOMENDACIONES DE LOS PROFESORES (ALTA PRIORIDAD) ===
+Los profesores humanos de la academia han establecido las siguientes pautas pedagógicas que DEBES seguir estrictamente:
+${feedbackItems}
+`;
+  }
+
   return `Tu nombre es Maxister.
 Eres el tutor pedagógico y acompañante inteligente de Inteligencia Artificial de la Academia "Desde0" (https://desde0.jesusdmedinac.com).
 Tu misión es guiar y enseñar programación a los estudiantes con el Método Socrático: de forma ágil, directa y al grano.
@@ -49,6 +201,8 @@ CURSOS OFICIALES DE LA ACADEMIA:
 7. Kotlin for Beginners (Asistente AI Chat CLI en terminal).
 
 ${contextSnippet}
+${teacherPresenceSnippet}
+${feedbackSnippet}
 
 === REGLAS IRROMPIBLES DE CONCISIÓN Y AGILIDAD (ANTI-RELLENO) ===
 1. ⚡ VE DIRECTO AL GRANO (CERO RELLENO):
@@ -82,11 +236,17 @@ Si necesitas que el valor cambie a lo largo del programa, ¿qué palabra clave d
 `;
 }
 
-export function evaluatePedagogicalResponse(response: string): { isCompliant: boolean; reasons: string[] } {
+export function evaluatePedagogicalResponse(response: string): {
+  isCompliant: boolean;
+  reasons: string[];
+} {
   const reasons: string[] = [];
   const lower = response.toLowerCase();
 
-  if (lower.includes('aquí tienes la solución completa:') || lower.includes('copia y pega este código:')) {
+  if (
+    lower.includes('aquí tienes la solución completa:') ||
+    lower.includes('copia y pega este código:')
+  ) {
     reasons.push('Direct solution detected without socratic prompting');
   }
 
@@ -101,6 +261,7 @@ export async function* streamChatWithMaxister(params: {
   model?: string;
   lesson?: LessonDetail | null;
   academyContext?: string;
+  promptOptions?: SocraticPromptOptions;
   history: ChatMessage[];
   message: string;
 }): AsyncGenerator<string, void, unknown> {
@@ -116,7 +277,11 @@ export async function* streamChatWithMaxister(params: {
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const systemInstruction = buildSocraticPrompt(params.lesson, params.academyContext);
+  const systemInstruction = buildSocraticPrompt(
+    params.lesson,
+    params.academyContext,
+    params.promptOptions
+  );
 
   const contents = params.history.map((h) => ({
     role: h.role === 'model' ? 'model' : 'user',
