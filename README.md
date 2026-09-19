@@ -13,31 +13,40 @@ maxister/
 │   │   ├── knowledge_ingestion.feature
 │   │   ├── mcp_server.feature
 │   │   ├── socratic_agent.feature
+│   │   ├── student_authentication.feature
 │   │   ├── student_memory.feature
 │   │   └── web_dashboard.feature
 │   └── SOCRATIC_PROMPT_RESEARCH.md # AI Tutoring & Socratic Prompt Benchmark Paper
 ├── src/
 │   ├── components/               # React UI Components
 │   │   ├── App.tsx               # Minimalist ChatGPT-inspired chat studio
-│   │   └── MarkdownRenderer.tsx  # Rich GFM & PrismLight code highlighter with Copy button
+│   │   ├── AuthModal.tsx         # Student login and registration modal dialog
+│   │   ├── MarkdownRenderer.tsx  # Rich GFM & PrismLight code highlighter with Copy button
+│   │   ├── ShareTeacherModal.tsx # Teacher escalation dialog with unique share link
+│   │   └── SharedChatView.tsx    # Read-only teacher review studio
 │   ├── layouts/
 │   │   └── Layout.astro          # Base Astro HTML layout with dark theme
 │   ├── lib/
 │   │   ├── agent.ts              # 6-Module Socratic prompt engine & Gemini streaming
+│   │   ├── auth.ts               # Web Crypto PBKDF2 authentication & shared chat store
 │   │   ├── knowledge.ts          # Desde0 5-phase lesson parser & search engine
 │   │   └── memory.ts             # Student progress & persistent memory store
 │   ├── mcp/
 │   │   └── server.ts             # Official Model Context Protocol (MCP) server
 │   ├── pages/
 │   │   ├── index.astro           # Single-page chat interface mount
+│   │   ├── shared/
+│   │   │   └── [id].astro        # Teacher inspection view for shared student chats
 │   │   └── api/
+│   │       ├── auth/             # REST API for student registration, login, logout, me
 │   │       ├── chat.ts           # Real-time SSE/ReadableStream chat endpoint with Gemini
+│   │       ├── chat/share.ts     # Chat snapshot generation & retrieval for teacher escalation
 │   │       ├── courses.ts        # REST API endpoint listing academy courses
 │   │       ├── lesson.ts         # REST API endpoint returning structured 5-phase lesson
 │   │       └── memory.ts         # REST API endpoint managing student profile & notes
 │   └── styles/
 │       └── global.css            # Tailwind directives & dark theme base styles
-└── test/                         # Comprehensive Vitest test suites
+└── test/                         # Comprehensive Vitest test suites (agent, auth, knowledge, mcp, memory)
 ```
 
 ---

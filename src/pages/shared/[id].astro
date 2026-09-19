@@ -1,0 +1,30 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SharedChatView from '../../components/SharedChatView';
+import { defaultAuthStore } from '../../lib/auth';
+
+const { id } = Astro.params;
+const snapshot = id ? await defaultAuthStore.getSharedChat(id) : null;
+---
+
+<Layout title={snapshot ? `Conversación de ${snapshot.studentName} — Maxister` : "Conversación no encontrada"}>
+  {snapshot ? (
+    <SharedChatView client:only="react" snapshot={snapshot} />
+  ) : (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#181818] text-[#ececec] px-4 text-center">
+      <div className="size-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-paradiso-300 text-2xl font-bold">
+        ?
+      </div>
+      <h1 className="text-xl font-bold text-white mb-2">Conversación no encontrada</h1>
+      <p className="text-sm text-white/60 max-w-md mb-6">
+        Este enlace de conversación compartida no existe o ha expirado. Verifica con el estudiante o solicita un nuevo enlace.
+      </p>
+      <a
+        href="/"
+        className="px-4 py-2 rounded-xl bg-paradiso hover:bg-paradiso-600 text-white text-xs font-semibold transition"
+      >
+        Ir a Maxister
+      </a>
+    </div>
+  )}
+</Layout>

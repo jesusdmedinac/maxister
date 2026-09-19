@@ -14,9 +14,16 @@ import {
   Bot,
   User,
   ExternalLink,
+  LogIn,
+  LogOut,
+  Share2,
+  GraduationCap,
 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
+import AuthModal from './AuthModal';
+import ShareTeacherModal from './ShareTeacherModal';
 import type { ChatMessage } from '../lib/agent';
+import type { UserAccount } from '../lib/auth';
 
 const SUGGESTIONS = [
   {
@@ -42,10 +49,26 @@ const SUGGESTIONS = [
 ];
 
 export default function App() {
+  const [user, setUser] = useState<UserAccount | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Restore existing session on mount
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,6 +95,8 @@ export default function App() {
         body: JSON.stringify({
           message: messageText.trim(),
           history: messages,
+          studentName: user?.name,
+          activeCourse: user?.activeCourse,
         }),
       });
 
@@ -105,6 +130,15 @@ export default function App() {
     setInput('');
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      setUser(null);
+    } catch {
+      // Fallback
+    }
+  };
+
   const hasMessages = messages.length > 0;
 
   return (
@@ -125,27 +159,79 @@ export default function App() {
         </div>
 
         {/* Center Pill Mode */}
-        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#212121] border border-white/10 text-xs font-medium text-white/80">
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#212121] border border-white/10 text-xs font-medium text-white/80">
           <span className="size-2 rounded-full bg-emerald-400"></span>
           <span>Tutor Socrático • Desde0</span>
         </div>
 
-        {/* Right Links */}
-        <div className="flex items-center gap-3">
+        {/* Right Links & Auth State */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Share with Teacher Button (Only when messages exist) */}
+          {hasMessages && (
+            <button
+              onClick={() => {
+                if (!user) {
+                  setIsAuthModalOpen(true);
+                } else {
+                  setIsShareModalOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-paradiso/10 hover:bg-paradiso/20 text-paradiso-300 text-xs font-semibold border border-paradiso/20 transition"
+              title="Compartir consulta con el profesor"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Compartir con el profesor</span>
+            </button>
+          )}
+
           {hasMessages && (
             <button
               onClick={handleNewChat}
               className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition"
+              title="Reiniciar chat"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Nuevo Chat</span>
             </button>
           )}
+
+          {/* User Authentication Control */}
+          {user ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#212121] border border-white/10 text-xs">
+                <div className="size-4 rounded-full bg-paradiso flex items-center justify-center text-[10px] font-bold text-white">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-white/90 font-medium max-w-[100px] truncate">
+                  {user.name.split(' ')[0]}
+                </span>
+                <span className="hidden lg:inline text-[10px] text-paradiso-300 bg-paradiso/10 px-1.5 py-0.5 rounded">
+                  {user.activeCourse}
+                </span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition"
+                title="Cerrar Sesión"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-paradiso hover:bg-paradiso-600 text-white text-xs font-semibold shadow-md shadow-paradiso/20 transition"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Iniciar Sesión</span>
+            </button>
+          )}
+
           <a
             href="https://desde0.jesusdmedinac.com"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1 text-xs text-white/60 hover:text-paradiso-300 transition"
+            className="hidden sm:flex items-center gap-1 text-xs text-white/60 hover:text-paradiso-300 transition pl-1"
           >
             <span>Academia</span>
             <ExternalLink className="w-3 h-3" />
@@ -160,7 +246,7 @@ export default function App() {
           <div className="flex-1 w-full max-w-2xl px-4 flex flex-col items-center justify-center -mt-10">
             {/* Center Greeting */}
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white mb-8 text-center">
-              ¿Cuál es el programa de hoy?
+              {user ? `¿Qué vamos a aprender hoy, ${user.name.split(' ')[0]}?` : '¿Cuál es el programa de hoy?'}
             </h1>
 
             {/* Omnibar Input */}
@@ -232,7 +318,7 @@ export default function App() {
 
                   <div className="flex-1 min-w-0 overflow-hidden">
                     <div className="text-xs font-semibold text-white/50 mb-1.5 flex items-center gap-1.5">
-                      <span>{isBot ? 'Maxister' : 'Tú'}</span>
+                      <span>{isBot ? 'Maxister' : user?.name ? user.name.split(' ')[0] : 'Tú'}</span>
                       {isBot && (
                         <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-paradiso-300 font-normal">
                           Tutor
@@ -306,11 +392,27 @@ export default function App() {
             </div>
 
             <p className="text-[10px] text-center text-white/40 mt-2">
-              Maxister es un tutor pedagógico socrático. Te guía con preguntas y pistas para aprender a pensar como programador.
+              Maxister es un tutor pedagógico socrático. ¿Duda compleja? Usa el botón{' '}
+              <strong className="text-paradiso-300 font-medium">Compartir con el profesor</strong> para consultar directamente con un humano.
             </p>
           </div>
         )}
       </main>
+
+      {/* Modals */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={(newUser) => setUser(newUser)}
+      />
+
+      <ShareTeacherModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        user={user}
+        messages={messages}
+        activeCourse={user?.activeCourse}
+      />
     </div>
   );
 }

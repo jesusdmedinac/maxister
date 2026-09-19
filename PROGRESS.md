@@ -25,3 +25,12 @@
 ## 🔌 Feature 5: Model Context Protocol (MCP) Server (`mcp_server.feature`)
 - [x] Scenario: Expose standard MCP tools
 - [x] Scenario: Call get_lesson_content tool via MCP
+
+## 🔐 Feature 6: Student Authentication & Human Teacher Escalation (`student_authentication.feature`)
+- [x] Scenario: Register a new student account with validation and password hashing
+- [x] Scenario: Prevent duplicate account registration with the same email
+- [x] Scenario: Log in with valid credentials and issue secure session cookie
+- [x] Scenario: Reject login with invalid email or incorrect password
+- [x] Scenario: Inspect session state and log out terminating session
+- [x] Scenario: Authenticated student creates a shared chat snapshot for the teacher
+- [x] Scenario: Human teacher accesses and inspects a shared student chat via unique link
