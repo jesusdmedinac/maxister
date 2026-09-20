@@ -63,3 +63,11 @@
 - [x] Scenario: Dynamic activation and display of AI participation modes in student chat upon teacher arrival
 - [x] Scenario: Dynamic reversion when assigned teacher leaves or releases the consultation
 
+## 🚪 Feature 11: Read-Only Rooms, Smart Role Detection & Unified Teacher History (`room_access_and_teacher_history.feature`)
+- [x] Scenario: Unauthenticated guest accesses shared room in read-only mode with unified login action
+- [x] Scenario: Authenticated student owner accesses their own room and unlocks student messaging
+- [x] Scenario: Authenticated student visitor is restricted with read-only banner
+- [x] Scenario: Authenticated teacher connects to unassigned room, sees "Unirse al chat como profesor", and claims it into their unified chat history
+- [x] Scenario: Other teachers see assigned teacher banner, and releasing the room preserves the consultation in teacher chat history
+
+

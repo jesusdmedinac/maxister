@@ -13,11 +13,15 @@ import {
   ChevronLeft,
   VolumeX,
   Zap,
+  Eye,
+  LogIn,
+  ShieldAlert,
 } from 'lucide-react';
 import type { ConversationThread, RoomMessage, AiParticipationMode } from '../lib/conversations';
 import type { UserAccount } from '../lib/auth';
 import AiModeSelector from './AiModeSelector';
 import MarkdownRenderer from './MarkdownRenderer';
+import AuthModal from './AuthModal';
 
 interface Props {
   initialThread: ConversationThread;
@@ -28,15 +32,22 @@ interface Props {
 export default function TripartiteRoom({ initialThread, initialMessages, user }: Props) {
   const [thread, setThread] = useState<ConversationThread>(initialThread);
   const [messages, setMessages] = useState<RoomMessage[]>(initialMessages);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(user);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const isTeacher = user?.role === 'teacher' || user?.role === 'root_admin';
+  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'root_admin';
+  const isStudentOwner = currentUser?.role === 'student' && currentUser?.id === thread.userId;
+  const isStudentVisitor = currentUser?.role === 'student' && currentUser?.id !== thread.userId;
   const isTeacherPresent = Boolean(thread.assignedTeacherId);
-  const isAssignedToMe = thread.assignedTeacherId === user?.id;
+  const isAssignedToMe = thread.assignedTeacherId === currentUser?.id;
+  const isOtherTeacherAssigned = Boolean(thread.assignedTeacherId && thread.assignedTeacherId !== currentUser?.id);
   const canClaim = isTeacher && !thread.assignedTeacherId;
   const canRelease = isTeacher && isAssignedToMe;
+  const canWrite = isStudentOwner || isAssignedToMe;
+
 
   // Real-time synchronization polling every 2 seconds
   useEffect(() => {
@@ -172,32 +183,41 @@ export default function TripartiteRoom({ initialThread, initialMessages, user }:
           </div>
         </div>
 
-        {/* Teacher Actions (Claim / Release) */}
+        {/* User Identity / Actions */}
         <div className="flex items-center gap-2">
-          {canClaim && (
+          {!currentUser ? (
             <button
-              onClick={handleClaim}
+              onClick={() => setIsAuthModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-paradiso hover:bg-paradiso-600 text-white text-xs font-semibold shadow-md shadow-paradiso/20 transition"
             >
-              <GraduationCap className="w-4 h-4" />
-              <span>Atender Consulta</span>
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Iniciar Sesión</span>
             </button>
-          )}
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-white/80">
+                {isTeacher ? (
+                  <GraduationCap className="w-3.5 h-3.5 text-[#5865F2]" />
+                ) : (
+                  <User className="w-3.5 h-3.5 text-paradiso-400" />
+                )}
+                <span className="font-medium truncate max-w-[120px]">{currentUser.name}</span>
+                <span className="text-[10px] text-white/40 uppercase font-mono">
+                  {isTeacher ? 'Profesor' : 'Alumno'}
+                </span>
+              </div>
 
-          {canRelease && (
-            <button
-              onClick={handleRelease}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/90 text-xs font-semibold transition"
-              title="Ceder la sala a otro profesor para que continúe la atención"
-            >
-              <span>Ceder Consulta</span>
-            </button>
-          )}
-
-          {isTeacherPresent && !isAssignedToMe && isTeacher && (
-            <span className="text-xs text-white/40 italic hidden sm:inline">
-              (Atendida por otro profesor)
-            </span>
+              {canRelease && (
+                <button
+                  onClick={handleRelease}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/90 text-xs font-semibold transition"
+                  title="Ceder la sala a otro profesor para que continúe la atención"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Ceder Consulta</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -289,70 +309,158 @@ export default function TripartiteRoom({ initialThread, initialMessages, user }:
 
         {/* Bottom Control & Input Bar */}
         <div className="w-full max-w-3xl px-4 pb-4 pt-2 bg-[#181818]/95 backdrop-blur-sm shrink-0 space-y-2.5">
-          {/* AI Mode Selector: ONLY VISIBLE WHEN TEACHER IS PRESENT */}
-          {isTeacherPresent && (
-            <AiModeSelector
-              currentMode={thread.aiMode}
-              onSelectMode={handleSelectMode}
-              disabled={isLoading}
-            />
-          )}
-
-          {/* Omnibar Input */}
-          <div className="bg-[#212121] border border-white/10 rounded-3xl p-2.5 shadow-2xl focus-within:border-white/20 transition-all">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder={
-                isTeacher
-                  ? 'Escribe tu respuesta al alumno o dale una directriz a Maxister...'
-                  : 'Escribe tu mensaje en la sala compartida...'
-              }
-              rows={1}
-              disabled={isLoading}
-              className="w-full bg-transparent text-sm text-white placeholder-white/40 px-3 py-1.5 outline-none resize-none min-h-[38px] max-h-32"
-            />
-
-            <div className="flex items-center justify-between pt-1 px-1.5">
-              <div className="flex items-center gap-2 text-[11px] text-white/40">
-                {thread.aiMode === 'off' && isTeacherPresent && (
-                  <span className="flex items-center gap-1 text-white/40">
-                    <VolumeX className="w-3 h-3" />
-                    <span>Solo humanos</span>
-                  </span>
-                )}
-                {thread.aiMode === 'auto' && isTeacherPresent && (
-                  <span className="flex items-center gap-1 text-amber-300/80">
-                    <Zap className="w-3 h-3 text-amber-300" />
-                    <span>Copiloto Socrático</span>
-                  </span>
-                )}
-                {(!isTeacherPresent || thread.aiMode === 'on') && (
-                  <span className="flex items-center gap-1 text-paradiso-300">
-                    <Brain className="w-3 h-3 text-paradiso-300" />
-                    <span>Tutor Activo</span>
-                  </span>
-                )}
+          {/* 1. Unauthenticated Visitor Banner */}
+          {!currentUser && (
+            <div className="p-4 rounded-2xl bg-[#212121] border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-white/60">
+                  <Eye className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Estás viendo esta consulta en modo solo lectura</p>
+                  <p className="text-xs text-white/50">Inicia sesión como alumno o profesor para participar en la conversación.</p>
+                </div>
               </div>
-
               <button
-                onClick={() => handleSend()}
-                disabled={!input.trim() || isLoading}
-                className="size-7 rounded-full bg-white text-black flex items-center justify-center hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                title="Enviar"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-paradiso hover:bg-paradiso-600 text-white text-xs font-semibold transition shrink-0"
               >
-                <ArrowUp className="w-3.5 h-3.5" />
+                <LogIn className="w-4 h-4" />
+                <span>Iniciar Sesión</span>
               </button>
             </div>
-          </div>
+          )}
+
+          {/* 2. Authenticated Student Visitor (not room owner) */}
+          {currentUser && isStudentVisitor && (
+            <div className="p-4 rounded-2xl bg-[#212121] border border-white/10 flex items-center gap-3 shadow-lg">
+              <div className="size-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-white/60">
+                <Eye className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Estás viendo esta consulta en modo solo lectura</p>
+                <p className="text-xs text-white/50">Esta consulta pertenece a otro estudiante. Solo el autor y el profesor asignado pueden enviar mensajes.</p>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Authenticated Teacher, Room Open (canClaim) */}
+          {currentUser && canClaim && (
+            <div className="p-4 rounded-2xl bg-[#1e1e2e] border border-[#5865F2]/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-[#5865F2]/20 border border-[#5865F2]/40 flex items-center justify-center shrink-0 text-[#5865F2]">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Unirse al chat como profesor</p>
+                  <p className="text-xs text-white/60">Esta consulta está abierta. Al unirte, responderás al estudiante y podrás orientar a Maxister.</p>
+                </div>
+              </div>
+              <button
+                onClick={handleClaim}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#5865F2] hover:bg-[#4752c4] text-white text-xs font-semibold transition shrink-0 shadow-md shadow-[#5865F2]/20"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>Unirse como profesor</span>
+              </button>
+            </div>
+          )}
+
+          {/* 4. Authenticated Teacher, Another Teacher Assigned */}
+          {currentUser && isOtherTeacherAssigned && isTeacher && (
+            <div className="p-4 rounded-2xl bg-[#212121] border border-white/10 flex items-center gap-3 shadow-lg">
+              <div className="size-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-400">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  {thread.assignedTeacherName || 'Otro profesor'} es el profesor asignado
+                </p>
+                <p className="text-xs text-white/50">
+                  Esta consulta está siendo atendida activamente. Permanece en modo solo lectura para otros profesores.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 5. Interactive Chat (canWrite) */}
+          {canWrite && (
+            <>
+              {/* AI Mode Selector: ONLY VISIBLE WHEN TEACHER IS PRESENT */}
+              {isTeacherPresent && (
+                <AiModeSelector
+                  currentMode={thread.aiMode}
+                  onSelectMode={handleSelectMode}
+                  disabled={isLoading}
+                />
+              )}
+
+              {/* Omnibar Input */}
+              <div className="bg-[#212121] border border-white/10 rounded-3xl p-2.5 shadow-2xl focus-within:border-white/20 transition-all">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder={
+                    isTeacher
+                      ? 'Escribe tu respuesta al alumno o dale una directriz a Maxister...'
+                      : 'Escribe tu mensaje en la sala compartida...'
+                  }
+                  rows={1}
+                  disabled={isLoading}
+                  className="w-full bg-transparent text-sm text-white placeholder-white/40 px-3 py-1.5 outline-none resize-none min-h-[38px] max-h-32"
+                />
+
+                <div className="flex items-center justify-between pt-1 px-1.5">
+                  <div className="flex items-center gap-2 text-[11px] text-white/40">
+                    {thread.aiMode === 'off' && isTeacherPresent && (
+                      <span className="flex items-center gap-1 text-white/40">
+                        <VolumeX className="w-3 h-3" />
+                        <span>Solo humanos</span>
+                      </span>
+                    )}
+                    {thread.aiMode === 'auto' && isTeacherPresent && (
+                      <span className="flex items-center gap-1 text-amber-300/80">
+                        <Zap className="w-3 h-3 text-amber-300" />
+                        <span>Copiloto Socrático</span>
+                      </span>
+                    )}
+                    {(!isTeacherPresent || thread.aiMode === 'on') && (
+                      <span className="flex items-center gap-1 text-paradiso-300">
+                        <Brain className="w-3 h-3 text-paradiso-300" />
+                        <span>Tutor Activo</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleSend()}
+                    disabled={!input.trim() || isLoading}
+                    className="size-7 rounded-full bg-white text-black flex items-center justify-center hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    title="Enviar"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </main>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={(u) => {
+          setCurrentUser(u);
+          setIsAuthModalOpen(false);
+        }}
+      />
     </div>
   );
 }

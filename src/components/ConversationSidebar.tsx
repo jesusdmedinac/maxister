@@ -84,12 +84,23 @@ export default function ConversationSidebar({
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <MessageSquare className="w-3.5 h-3.5 text-white/40 group-hover:text-paradiso-300 shrink-0" />
+                        {thread.userId !== user?.id && isTeacher ? (
+                          <GraduationCap className="w-3.5 h-3.5 text-[#5865F2] shrink-0" />
+                        ) : (
+                          <MessageSquare className="w-3.5 h-3.5 text-white/40 group-hover:text-paradiso-300 shrink-0" />
+                        )}
                         <span className="truncate">{thread.title}</span>
                       </div>
-                      {thread.isShared && (
-                        <Share2 className="w-3 h-3 text-paradiso-300 shrink-0 ml-1" title="Compartido" />
-                      )}
+                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                        {thread.userId !== user?.id && isTeacher && (
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-[#5865F2]/20 text-[#5865F2] font-semibold">
+                            Consulta
+                          </span>
+                        )}
+                        {thread.isShared && (
+                          <Share2 className="w-3 h-3 text-paradiso-300 shrink-0" title="Compartido" />
+                        )}
+                      </div>
                     </button>
                   );
                 })}

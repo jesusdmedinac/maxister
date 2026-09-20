@@ -52,6 +52,33 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
       }
     }
 
+    // Shared rooms enforcement: Read-only for unauthenticated visitors, other students, and unassigned teachers
+    if (thread.isShared) {
+      if (!sessionToken || senderId === 'guest') {
+        return new Response(
+          JSON.stringify({ error: 'Debes iniciar sesión para enviar mensajes en esta consulta' }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const isTeacher = senderRole === 'teacher';
+      const isOwner = senderId === thread.userId;
+
+      if (!isTeacher && !isOwner) {
+        return new Response(
+          JSON.stringify({ error: 'Estás viendo esta consulta en modo solo lectura' }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (isTeacher && thread.assignedTeacherId !== senderId) {
+        return new Response(
+          JSON.stringify({ error: 'Debes atender la consulta como profesor antes de enviar mensajes' }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     let feedbackDirectiveInfo: { id: string; title: string; directiveContent: string } | undefined;
 
     // If a teacher speaks, automatically evaluate if message contains pedagogical feedback

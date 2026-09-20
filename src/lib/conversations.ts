@@ -8,10 +8,12 @@ export interface ConversationThread {
   isShared: boolean;
   assignedTeacherId?: string | null;
   assignedTeacherName?: string | null;
+  participatingTeacherIds?: string[];
   aiMode: AiParticipationMode;
   createdAt: string;
   updatedAt: string;
 }
+
 
 export interface RoomMessage {
   id: string;
@@ -86,6 +88,7 @@ export class InMemoryConversationStore {
       isShared: false,
       assignedTeacherId: null,
       assignedTeacherName: null,
+      participatingTeacherIds: [],
       aiMode: 'on', // Mandatory AI On for personal student chat
       createdAt: now,
       updatedAt: now,
@@ -99,7 +102,10 @@ export class InMemoryConversationStore {
   async listUserThreads(userId: string): Promise<ConversationThread[]> {
     const userThreads: ConversationThread[] = [];
     for (const thread of this.threads.values()) {
-      if (thread.userId === userId) {
+      if (
+        thread.userId === userId ||
+        (thread.participatingTeacherIds && thread.participatingTeacherIds.includes(userId))
+      ) {
         userThreads.push(thread);
       }
     }
@@ -154,11 +160,20 @@ export class InMemoryConversationStore {
 
     thread.assignedTeacherId = teacherId;
     thread.assignedTeacherName = teacherName;
+
+    if (!thread.participatingTeacherIds) {
+      thread.participatingTeacherIds = [];
+    }
+    if (!thread.participatingTeacherIds.includes(teacherId)) {
+      thread.participatingTeacherIds.push(teacherId);
+    }
+
     thread.updatedAt = new Date().toISOString();
     this.threads.set(threadId, thread);
 
     return { success: true, thread };
   }
+
 
   async releaseThreadByTeacher(
     threadId: string,
