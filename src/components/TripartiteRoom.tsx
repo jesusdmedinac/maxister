@@ -36,7 +36,24 @@ export default function TripartiteRoom({ initialThread, initialMessages, user }:
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [revertedDirectiveIds, setRevertedDirectiveIds] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleRevertDirective = async (directiveId: string) => {
+    try {
+      const res = await fetch(`/api/backoffice/feedback?id=${encodeURIComponent(directiveId)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setRevertedDirectiveIds((prev) => new Set(prev).add(directiveId));
+      } else {
+        const data = await res.json();
+        alert(data.error || 'No se pudo eliminar la directriz');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error de conexión');
+    }
+  };
 
   const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'root_admin';
   const isStudentOwner = currentUser?.role === 'student' && currentUser?.id === thread.userId;
@@ -276,16 +293,45 @@ export default function TripartiteRoom({ initialThread, initialMessages, user }:
                   </div>
                 </div>
 
-                {/* Explicit Teacher Feedback Directive Badge */}
+                {/* Explicit Teacher Feedback Directive Badge with revert button */}
                 {msg.feedbackDirective && (
-                  <div className="ml-10 p-2.5 rounded-xl bg-paradiso/10 border border-paradiso/30 text-paradiso-300 text-xs flex items-start gap-2 animate-fade-in">
-                    <Brain className="w-4 h-4 shrink-0 mt-0.5 text-paradiso-300" />
-                    <div>
-                      <span className="font-bold block text-[11px] uppercase tracking-wider text-paradiso-200">
-                        Maxister aprendió de esta directriz del profesor:
-                      </span>
-                      <span className="italic text-white/90">"{msg.feedbackDirective.directiveContent}"</span>
+                  <div
+                    className={`ml-10 p-2.5 rounded-xl border text-xs flex items-center justify-between gap-3 animate-fade-in ${
+                      revertedDirectiveIds.has(msg.feedbackDirective.id)
+                        ? 'bg-white/5 border-white/10 text-white/40'
+                        : 'bg-paradiso/10 border-paradiso/30 text-paradiso-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Brain
+                        className={`w-4 h-4 shrink-0 mt-0.5 ${
+                          revertedDirectiveIds.has(msg.feedbackDirective.id)
+                            ? 'text-white/40'
+                            : 'text-paradiso-300'
+                        }`}
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] uppercase tracking-wider">
+                          {revertedDirectiveIds.has(msg.feedbackDirective.id)
+                            ? 'Directriz eliminada de la memoria estratégica'
+                            : 'Maxister aprendió de esta directriz del profesor:'}
+                        </span>
+                        <span className="italic truncate block">
+                          "{msg.feedbackDirective.directiveContent}"
+                        </span>
+                      </div>
                     </div>
+
+                    {isTeacher && !revertedDirectiveIds.has(msg.feedbackDirective.id) && (
+                      <button
+                        onClick={() => handleRevertDirective(msg.feedbackDirective!.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[11px] font-medium transition shrink-0 border border-red-500/30 shadow-sm"
+                        title="Deshacer y eliminar de la memoria estratégica"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Deshacer</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

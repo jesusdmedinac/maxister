@@ -10,6 +10,14 @@ async function requireRootAdmin(cookies: any) {
   return user;
 }
 
+async function requireTeacherOrAdmin(cookies: any) {
+  const token = cookies.get('maxister_session')?.value;
+  if (!token) return null;
+  const user = await defaultAuthStore.validateSession(token);
+  if (!user || (user.role !== 'teacher' && user.role !== 'root_admin')) return null;
+  return user;
+}
+
 export const GET: APIRoute = async ({ cookies, url }) => {
   const admin = await requireRootAdmin(cookies);
   if (!admin) {
@@ -107,6 +115,53 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
 
     return new Response(JSON.stringify({ entry: updated }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err?.message || 'Error del servidor' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+};
+
+export const DELETE: APIRoute = async ({ request, cookies, url }) => {
+  const user = await requireTeacherOrAdmin(cookies);
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Acceso denegado' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    let id = url.searchParams.get('id');
+    if (!id) {
+      try {
+        const body = await request.json();
+        id = body?.id;
+      } catch {
+        // Body might be empty or not JSON
+      }
+    }
+
+    if (!id) {
+      return new Response(JSON.stringify({ error: 'id requerido' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const success = await defaultConversationStore.deleteTeacherFeedback(id);
+    if (!success) {
+      return new Response(JSON.stringify({ error: 'Directriz no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, message: 'Directriz eliminada de la memoria' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

@@ -20,6 +20,7 @@ import {
   GraduationCap,
   Menu,
   Shield,
+  Clock,
 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import AuthModal from './AuthModal';
@@ -67,6 +68,29 @@ const SUGGESTIONS = [
   },
 ];
 
+const TEACHER_SUGGESTIONS = [
+  {
+    icon: Sparkles,
+    title: 'Diseñar lección en 5 fases pedagógicas',
+    prompt: 'Ayúdame a estructurar una lección de 4 horas siguiendo las 5 fases pedagógicas de Desde0 sobre: ',
+  },
+  {
+    icon: Lightbulb,
+    title: 'Proponer analogía conceptual para principiantes',
+    prompt: 'Dame 3 propuestas de analogías del mundo real para explicar a principiantes el concepto de: ',
+  },
+  {
+    icon: Bug,
+    title: 'Generar trampas de sintaxis y errores comunes',
+    prompt: 'Genera un catálogo de errores comunes y trampas de sintaxis para principiantes con sus diagnósticos para: ',
+  },
+  {
+    icon: BookOpen,
+    title: 'Solución completa de código con pruebas unitarias',
+    prompt: 'Escribe la solución completa y una suite de pruebas unitarias exhaustiva con casos borde para: ',
+  },
+];
+
 export default function App() {
   const [user, setUser] = useState<UserAccount | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -81,7 +105,27 @@ export default function App() {
   const [messages, setMessages] = useState<AppMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [revertedDirectiveIds, setRevertedDirectiveIds] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const isTeacherUser = user?.role === 'teacher' || user?.role === 'root_admin';
+  const unassignedConsultations = sharedThreads.filter((t) => !t.assignedTeacherId).slice(0, 4);
+
+  const handleRevertDirective = async (directiveId: string) => {
+    try {
+      const res = await fetch(`/api/backoffice/feedback?id=${encodeURIComponent(directiveId)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setRevertedDirectiveIds((prev) => new Set(prev).add(directiveId));
+      } else {
+        const data = await res.json();
+        alert(data.error || 'No se pudo eliminar la directriz');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error de conexión');
+    }
+  };
 
   // Restore existing session on mount
   useEffect(() => {
@@ -320,20 +364,33 @@ export default function App() {
         }),
       });
 
+      // Check for auto-saved teacher feedback directive in headers
+      const directiveHeader = res.headers.get('X-Maxister-Feedback-Directive');
+      let detectedDirective: any = undefined;
+      if (directiveHeader) {
+        try {
+          detectedDirective = JSON.parse(decodeURIComponent(directiveHeader));
+        } catch {}
+      }
+
+      const historyWithDirective = detectedDirective
+        ? newHistory.map((m, idx) => (idx === newHistory.length - 1 ? { ...m, feedbackDirective: detectedDirective } : m))
+        : newHistory;
+
       if (!res.body) throw new Error('No stream available');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let assistantText = '';
 
-      setMessages([...newHistory, { role: 'model', senderRole: 'assistant', text: '' }]);
+      setMessages([...historyWithDirective, { role: 'model', senderRole: 'assistant', text: '' }]);
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         assistantText += chunk;
-        setMessages([...newHistory, { role: 'model', senderRole: 'assistant', text: assistantText }]);
+        setMessages([...historyWithDirective, { role: 'model', senderRole: 'assistant', text: assistantText }]);
       }
 
       if (currentThreadId) {
@@ -342,7 +399,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [
-              ...newHistory,
+              ...historyWithDirective,
               { role: 'model', text: assistantText },
             ],
           }),
@@ -421,8 +478,14 @@ export default function App() {
 
           {/* Center Pill Mode */}
           <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#212121] border border-white/10 text-xs font-medium text-white/80">
-            <span className="size-2 rounded-full bg-emerald-400"></span>
-            <span>Tutor Socrático • Desde0</span>
+            <span
+              className={`size-2 rounded-full ${
+                isTeacherUser ? 'bg-[#5865F2] animate-pulse' : 'bg-emerald-400'
+              }`}
+            ></span>
+            <span>
+              {isTeacherUser ? '🎓 Copiloto Docente • Modo Experto' : 'Tutor Socrático • Desde0'}
+            </span>
           </div>
 
           {/* Right Links & Auth State */}
@@ -467,7 +530,7 @@ export default function App() {
                     {user.name.split(' ')[0]}
                   </span>
                   <span className="hidden xl:inline text-[10px] text-paradiso-300 bg-paradiso/10 px-1.5 py-0.5 rounded">
-                    {user.activeCourse}
+                    {isTeacherUser ? 'Profesor' : user.activeCourse}
                   </span>
                 </div>
                 <button
@@ -529,10 +592,70 @@ export default function App() {
 
           {!hasMessages ? (
             /* Empty / Hero State */
-            <div className="flex-1 w-full max-w-2xl px-4 flex flex-col items-center justify-center -mt-10">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white mb-8 text-center">
-                {user ? `¿Qué vamos a aprender hoy, ${user.name.split(' ')[0]}?` : '¿Cuál es el programa de hoy?'}
+            <div className="flex-1 w-full max-w-2xl px-4 flex flex-col items-center justify-center my-auto py-6">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white mb-2 text-center">
+                {isTeacherUser
+                  ? `¿En qué puedo ayudarte hoy, Profesor ${user?.name.split(' ')[0]}?`
+                  : user
+                  ? `¿Qué vamos a aprender hoy, ${user.name.split(' ')[0]}?`
+                  : '¿Cuál es el programa de hoy?'}
               </h1>
+
+              {isTeacherUser ? (
+                <p className="text-xs text-white/50 text-center mb-6 max-w-md">
+                  Copiloto pedagógico activo: soluciones completas de código, diseño de retos de 5 fases y directrices de memoria persistentes.
+                </p>
+              ) : (
+                <div className="mb-6" />
+              )}
+
+              {/* Priority Cards: Up to 4 Unassigned Student Consultation Rooms */}
+              {isTeacherUser && unassignedConsultations.length > 0 && (
+                <div className="w-full mb-6 animate-fade-in">
+                  <div className="flex items-center justify-between mb-2.5 px-1">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-[#5865F2]" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/90">
+                        Consultas de Alumnos en Espera ({unassignedConsultations.length})
+                      </h3>
+                    </div>
+                    <span className="text-[10px] text-white/40">Abiertas a cualquier profesor</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {unassignedConsultations.map((cThread) => (
+                      <div
+                        key={cThread.id}
+                        className="p-3 rounded-2xl bg-[#1e1e2e]/90 border border-[#5865F2]/30 hover:border-[#5865F2]/60 transition flex flex-col justify-between gap-2.5 text-left group shadow-lg"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#5865F2]/20 text-[#5865F2] font-semibold truncate max-w-[140px]">
+                              {cThread.courseId}
+                            </span>
+                            <span className="text-[10px] text-white/40 flex items-center gap-1 font-mono">
+                              <Clock className="w-3 h-3" />
+                              {new Date(cThread.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-xs font-medium text-white/90 line-clamp-2 group-hover:text-white transition">
+                            {cThread.title}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                          <span className="text-[10px] text-white/40">1 a 1 en vivo</span>
+                          <button
+                            onClick={() => handleSelectThread(cThread)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#5865F2] hover:bg-[#4752c4] text-white text-[11px] font-semibold shadow-sm transition"
+                          >
+                            <span>Atender consulta</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Omnibar Input */}
               <div className="w-full bg-[#212121] border border-white/10 rounded-3xl p-2.5 shadow-2xl focus-within:border-white/20 transition-all">
@@ -545,7 +668,11 @@ export default function App() {
                       handleSend();
                     }
                   }}
-                  placeholder="Pregunta lo que quieras sobre tu código o lección..."
+                  placeholder={
+                    isTeacherUser
+                      ? 'Escribe una consulta pedagógica, pide soluciones completas o define una pauta...'
+                      : 'Pregunta lo que quieras sobre tu código o lección...'
+                  }
                   rows={1}
                   className="w-full bg-transparent text-sm text-white placeholder-white/40 px-3 py-2 outline-none resize-none min-h-[44px] max-h-40"
                 />
@@ -554,7 +681,7 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1 text-[11px] font-medium text-white/60 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
                       <Brain className="w-3 h-3 text-paradiso-300" />
-                      <span>Pensar socrático</span>
+                      <span>{isTeacherUser ? 'Copiloto Docente' : 'Pensar socrático'}</span>
                     </span>
                   </div>
 
@@ -571,7 +698,7 @@ export default function App() {
 
               {/* Quick Action Suggestions */}
               <div className="w-full mt-6 space-y-2">
-                {SUGGESTIONS.map((item, idx) => {
+                {(isTeacherUser ? TEACHER_SUGGESTIONS : SUGGESTIONS).map((item, idx) => {
                   const Icon = item.icon;
                   return (
                     <button
@@ -653,16 +780,45 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Teacher feedback directive badge */}
+                    {/* Teacher feedback directive badge with revert button */}
                     {msg.feedbackDirective && (
-                      <div className="ml-11 p-2.5 rounded-xl bg-paradiso/10 border border-paradiso/30 text-paradiso-300 text-xs flex items-start gap-2 animate-fade-in">
-                        <Brain className="w-4 h-4 shrink-0 mt-0.5 text-paradiso-300" />
-                        <div>
-                          <span className="font-bold block text-[11px] uppercase tracking-wider text-paradiso-200">
-                            Maxister aprendió de esta directriz del profesor:
-                          </span>
-                          <span className="italic text-white/90">"{msg.feedbackDirective.directiveContent}"</span>
+                      <div
+                        className={`ml-11 p-2.5 rounded-xl border text-xs flex items-center justify-between gap-3 animate-fade-in ${
+                          revertedDirectiveIds.has(msg.feedbackDirective.id)
+                            ? 'bg-white/5 border-white/10 text-white/40'
+                            : 'bg-paradiso/10 border-paradiso/30 text-paradiso-300'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Brain
+                            className={`w-4 h-4 shrink-0 mt-0.5 ${
+                              revertedDirectiveIds.has(msg.feedbackDirective.id)
+                                ? 'text-white/40'
+                                : 'text-paradiso-300'
+                            }`}
+                          />
+                          <div>
+                            <span className="font-bold block text-[11px] uppercase tracking-wider">
+                              {revertedDirectiveIds.has(msg.feedbackDirective.id)
+                                ? 'Directriz eliminada de la memoria estratégica'
+                                : 'Maxister aprendió de esta directriz del profesor:'}
+                            </span>
+                            <span className="italic truncate block">
+                              "{msg.feedbackDirective.directiveContent}"
+                            </span>
+                          </div>
                         </div>
+
+                        {!revertedDirectiveIds.has(msg.feedbackDirective.id) && (
+                          <button
+                            onClick={() => handleRevertDirective(msg.feedbackDirective!.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[11px] font-medium transition shrink-0 border border-red-500/30 shadow-sm"
+                            title="Deshacer y eliminar de la memoria estratégica"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Deshacer</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -710,6 +866,8 @@ export default function App() {
                   placeholder={
                     activeThread?.assignedTeacherId
                       ? 'Escribe tu mensaje en la consulta compartida...'
+                      : isTeacherUser
+                      ? 'Escribe a tu copiloto docente...'
                       : 'Escribe tu mensaje a Maxister...'
                   }
                   rows={1}
@@ -721,7 +879,13 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1 text-[11px] font-medium text-white/50">
                       <Brain className="w-3 h-3 text-paradiso-300" />
-                      <span>{activeThread?.assignedTeacherId ? 'Tripartito' : 'Socrático'}</span>
+                      <span>
+                        {activeThread?.assignedTeacherId
+                          ? 'Tripartito'
+                          : isTeacherUser
+                          ? 'Copiloto Docente'
+                          : 'Socrático'}
+                      </span>
                     </span>
                   </div>
 

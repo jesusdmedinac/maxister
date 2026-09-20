@@ -362,6 +362,10 @@ export class InMemoryConversationStore {
     return entry;
   }
 
+  async deleteTeacherFeedback(id: string): Promise<boolean> {
+    return this.feedbackEntries.delete(id);
+  }
+
   async listTeacherFeedback(filters?: {
     courseId?: string;
     teacherId?: string;

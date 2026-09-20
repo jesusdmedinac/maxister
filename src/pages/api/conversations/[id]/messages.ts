@@ -152,11 +152,14 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
         aiResponseText = `🤖 **[Maxister Socrático]**: Analizando tu consulta sobre **${thread.courseId}**: ¿Qué ocurre cuando ejecutas ese bloque paso a paso?`;
       } else {
         const ai = new GoogleGenAI({ apiKey });
+        const isPersonalTeacherThread = !thread.isShared && senderRole === 'teacher';
         const systemInstruction = buildSocraticPrompt(null, `Curso: ${thread.courseId}`, {
           strategicFeedback,
           isTeacherPresent,
           teacherName: thread.assignedTeacherName || undefined,
           aiMode: thread.aiMode,
+          userRole: isPersonalTeacherThread ? 'teacher' : 'student',
+          userName: senderName,
         });
 
         const contents = history.map((h) => ({

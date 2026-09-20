@@ -70,4 +70,11 @@
 - [x] Scenario: Authenticated teacher connects to unassigned room, sees "Unirse al chat como profesor", and claims it into their unified chat history
 - [x] Scenario: Other teachers see assigned teacher banner, and releasing the room preserves the consultation in teacher chat history
 
+## 🎓 Feature 12: Teacher Co-Pilot Experience, Revertable Directives & Unassigned Consultations (`teacher_copilot.feature`)
+- [x] Scenario: Authenticated teacher connects to personal chat and receives Teacher Co-Pilot persona
+- [x] Scenario: Teacher requests complete code solutions and unit test suites
+- [x] Scenario: Teacher provides natural language pedagogical directive in personal chat with revert action
+- [x] Scenario: Teacher reverts an auto-detected directive directly from the chat badge
+- [x] Scenario: Teacher home screen displays up to 4 latest unassigned student consultation rooms
+
 

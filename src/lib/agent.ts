@@ -12,6 +12,8 @@ export interface SocraticPromptOptions {
   isTeacherPresent?: boolean;
   teacherName?: string;
   aiMode?: AiParticipationMode;
+  userRole?: 'student' | 'teacher' | 'root_admin';
+  userName?: string;
 }
 
 export function shouldAiRespond(params: {
@@ -140,6 +142,9 @@ export function buildSocraticPrompt(
   academyContext?: string,
   options?: SocraticPromptOptions
 ): string {
+  if (options?.userRole === 'teacher' || options?.userRole === 'root_admin') {
+    return buildTeacherCoPilotPrompt(options?.userName, academyContext, options);
+  }
   let contextSnippet = '';
   if (lesson) {
     contextSnippet = `
@@ -256,6 +261,64 @@ export function evaluatePedagogicalResponse(response: string): {
   };
 }
 
+export function buildTeacherCoPilotPrompt(
+  teacherName?: string,
+  academyContext?: string,
+  options?: SocraticPromptOptions
+): string {
+  let contextSnippet = '';
+  if (academyContext) {
+    contextSnippet = `
+=== CONTEXTO DEL CURSO / ACADEMIA DESDE0 ===
+${academyContext}
+`;
+  }
+
+  let feedbackSnippet = '';
+  if (options?.strategicFeedback && options.strategicFeedback.length > 0) {
+    const feedbackItems = options.strategicFeedback
+      .map((f) => `- [${f.title}] (${f.directiveType}): ${f.directiveContent}`)
+      .join('\n');
+    feedbackSnippet = `
+=== DIRECTRICES ACTIVAS EN TU MEMORIA ESTRATÉGICA ===
+${feedbackItems}
+`;
+  }
+
+  return `Tu nombre es Maxister.
+Estás interactuando en privado con un PROFESOR de la Academia "Desde0" (${teacherName || 'Profesor'}).
+Tu rol actual NO es ser tutor de un alumno. Eres el COPILOTO PEDAGÓGICO Y ASISTENTE TÉCNICO DOCENTE (Teaching Assistant & Syllabus Co-pilot).
+
+=== DIRECTRICES PRINCIPALES PARA EL TRATO CON PROFESORES ===
+1. 🤝 TRATO DE COLEGA A COLEGA:
+   - Comunícate como un par técnico y pedagógico de alto nivel.
+   - Cero condescendencia o explicaciones paternalistas. El usuario es un docente o ingeniero experto.
+
+2. 🚀 CERO RESTRICCIONES DE ANTI-SPOONFEEDING:
+   - Si el profesor pide código, soluciones completas, ejercicios o bancos de preguntas, ENTRÉGALOS COMPLETOS y listos para producción o clase.
+   - No escondas respuestas ni des pistas mínimas como harías con un estudiante.
+   - Incluye casos de prueba unitarios (TDD), análisis de complejidad, casos de borde y buenas prácticas.
+
+3. 📚 ALINEACIÓN CON LA METODOLOGÍA PEDAGÓGICA DE DESDE0 (5 FASES):
+   - Cada lección de 4 horas en la academia se estructura en 5 fases pedagógicas obligatorias:
+     1. Fase 1: Rompehielos / Puente conceptual con la semana previa (~30 min).
+     2. Fase 2: Introducción teórica dialogada y experimentos guiados en vivo (~45 min).
+     3. Fase 3: Práctica asistida con 3-4 retos guiados progresivos (~90 min).
+     4. Fase 4: Exposición, debate y debugging de trampas y errores comunes (~45 min).
+     5. Fase 5: Reto semanal estructurado y criterios de evaluación (~30 min).
+   - Cuando el profesor pida diseñar clases o retos, utiliza esta estructura pedagógica exacta.
+
+4. 🧠 RECONOCIMIENTO Y REGISTRO DE DIRECTRICES PEDAGÓGICAS:
+   - Si el profesor te instruye sobre cómo explicar un concepto (ej: analogías a usar, términos a evitar, advertencias de sintaxis), reconoce la pauta con entusiasmo profesional y confirma cómo la aplicarás con los alumnos.
+
+5. ⚡ ESTILO Y TONO:
+   - Ágil, claro, modular y estructurado con Markdown impecable.
+
+${contextSnippet}
+${feedbackSnippet}
+`;
+}
+
 export async function* streamChatWithMaxister(params: {
   apiKey?: string;
   model?: string;
@@ -268,20 +331,35 @@ export async function* streamChatWithMaxister(params: {
   const apiKey = params.apiKey || process.env.GEMINI_API_KEY || process.env.PUBLIC_GEMINI_API_KEY;
   const modelName = params.model || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 
+  const isTeacherUser =
+    params.promptOptions?.userRole === 'teacher' ||
+    params.promptOptions?.userRole === 'root_admin';
+
   if (!apiKey) {
     // Graceful fallback for local development / testing without API key
-    yield `🤖 **[Modo Simulación Maxister]** *(Para respuestas en vivo con Gemini, configura tu \`GEMINI_API_KEY\`)*\n\n`;
-    yield `¡Hola! Soy **Maxister**, tu tutor en la academia Desde0.\n\n`;
-    yield `Vamos a analizar tu pregunta paso a paso: ¿Qué parte del concepto o código te genera más curiosidad o dónde sientes que te trabaste?`;
+    if (isTeacherUser) {
+      yield `🤖 **[Copiloto Docente Maxister]** *(Para respuestas completas con Gemini, configura tu \`GEMINI_API_KEY\`)*\n\n`;
+      yield `¡Saludos, Profesor! ¿En qué puedo asistirte hoy con la preparación de tus clases, retos o la memoria de Maxister?`;
+    } else {
+      yield `🤖 **[Modo Simulación Maxister]** *(Para respuestas en vivo con Gemini, configura tu \`GEMINI_API_KEY\`)*\n\n`;
+      yield `¡Hola! Soy **Maxister**, tu tutor en la academia Desde0.\n\n`;
+      yield `Vamos a analizar tu pregunta paso a paso: ¿Qué parte del concepto o código te genera más curiosidad o dónde sientes que te trabaste?`;
+    }
     return;
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const systemInstruction = buildSocraticPrompt(
-    params.lesson,
-    params.academyContext,
-    params.promptOptions
-  );
+  const systemInstruction = isTeacherUser
+    ? buildTeacherCoPilotPrompt(
+        params.promptOptions?.userName || params.promptOptions?.teacherName,
+        params.academyContext,
+        params.promptOptions
+      )
+    : buildSocraticPrompt(
+        params.lesson,
+        params.academyContext,
+        params.promptOptions
+      );
 
   const contents = params.history.map((h) => ({
     role: h.role === 'model' ? 'model' : 'user',
