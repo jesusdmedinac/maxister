@@ -12,7 +12,6 @@ export default function TeacherManager({ initialTeachers }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [assignedCourses, setAssignedCourses] = useState('kotlin-beginners');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +28,7 @@ export default function TeacherManager({ initialTeachers }: Props) {
           name,
           email,
           password,
-          assignedCourses: [assignedCourses],
+          assignedCourses: ['all'],
         }),
       });
 
@@ -97,7 +96,7 @@ export default function TeacherManager({ initialTeachers }: Props) {
       {isAdding && (
         <form onSubmit={handleCreate} className="p-5 bg-[#181818] border border-white/10 rounded-2xl space-y-4">
           <h3 className="text-sm font-semibold text-white">Nuevo Docente</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs text-white/70 mb-1">Nombre Completo</label>
               <input
@@ -131,22 +130,6 @@ export default function TeacherManager({ initialTeachers }: Props) {
                 placeholder="Mínimo 6 caracteres"
                 className="w-full bg-[#212121] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-paradiso"
               />
-            </div>
-            <div>
-              <label className="block text-xs text-white/70 mb-1">Curso Asignado</label>
-              <select
-                value={assignedCourses}
-                onChange={(e) => setAssignedCourses(e.target.value)}
-                className="w-full bg-[#212121] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-paradiso"
-              >
-                <option value="kotlin-beginners">Kotlin for Beginners</option>
-                <option value="para-no-programadores">Para No Programadores</option>
-                <option value="para-principiantes">Para Principiantes</option>
-                <option value="stack-personalizado">Stack Personalizado</option>
-                <option value="software-engineering">Ingeniería de Software</option>
-                <option value="kotlin-multiplatform">Kotlin Multiplatform (KMP)</option>
-                <option value="ia-para-desarrolladores">IA para Desarrolladores</option>
-              </select>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
@@ -199,8 +182,10 @@ export default function TeacherManager({ initialTeachers }: Props) {
                   </td>
                   <td className="px-4 py-3 text-white/60 font-mono text-[11px]">{teacher.email}</td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-full bg-white/5 text-paradiso-300 border border-white/5 text-[10px]">
-                      {teacher.activeCourse}
+                    <span className="px-2 py-0.5 rounded-full bg-paradiso/10 text-paradiso-300 border border-paradiso/20 text-[10px] font-mono">
+                      {!teacher.assignedCourses || teacher.assignedCourses.includes('all')
+                        ? 'Todos los cursos'
+                        : teacher.assignedCourses.join(', ')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
