@@ -25,9 +25,24 @@ import MarkdownRenderer from './MarkdownRenderer';
 import AuthModal from './AuthModal';
 import ShareTeacherModal from './ShareTeacherModal';
 import ConversationSidebar from './ConversationSidebar';
+import AiModeSelector from './AiModeSelector';
 import type { ChatMessage } from '../lib/agent';
 import type { UserAccount } from '../lib/auth';
-import type { ConversationThread } from '../lib/conversations';
+import type { ConversationThread, AiParticipationMode } from '../lib/conversations';
+
+export interface AppMessage {
+  id?: string;
+  role: 'user' | 'model';
+  senderRole?: 'student' | 'teacher' | 'assistant';
+  senderName?: string;
+  text: string;
+  feedbackDirective?: {
+    id: string;
+    title: string;
+    directiveContent: string;
+  };
+  createdAt?: string;
+}
 
 const SUGGESTIONS = [
   {
@@ -61,8 +76,9 @@ export default function App() {
   const [userThreads, setUserThreads] = useState<ConversationThread[]>([]);
   const [sharedThreads, setSharedThreads] = useState<ConversationThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [activeThread, setActiveThread] = useState<ConversationThread | null>(null);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<AppMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -97,6 +113,56 @@ export default function App() {
     loadThreads();
   }, [user]);
 
+  // Real-time synchronization polling when thread is active
+  useEffect(() => {
+    if (!activeThreadId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const lastMsg = messages[messages.length - 1];
+        const sinceParam = lastMsg?.createdAt ? `?since=${encodeURIComponent(lastMsg.createdAt)}` : '';
+        const res = await fetch(`/api/conversations/${activeThreadId}/sync${sinceParam}`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data.thread) {
+          setActiveThread(data.thread);
+        }
+
+        if (data.newMessages && data.newMessages.length > 0) {
+          setMessages((prev) => {
+            const existingKeys = new Set(
+              prev.map((m) => m.id || `${m.senderRole || m.role}:${m.text.trim()}`)
+            );
+            const fresh: AppMessage[] = [];
+
+            for (const m of data.newMessages) {
+              const key = m.id || `${m.senderRole}:${m.text.trim()}`;
+              if (!existingKeys.has(key)) {
+                existingKeys.add(key);
+                fresh.push({
+                  id: m.id,
+                  role: m.senderRole === 'assistant' ? 'model' : 'user',
+                  senderRole: m.senderRole,
+                  senderName: m.senderName,
+                  text: m.text,
+                  feedbackDirective: m.feedbackDirective,
+                  createdAt: m.createdAt,
+                });
+              }
+            }
+
+            return fresh.length > 0 ? [...prev, ...fresh] : prev;
+          });
+        }
+      } catch {
+        // Silently continue
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [activeThreadId, messages]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -107,17 +173,26 @@ export default function App() {
 
   const handleSelectThread = async (thread: ConversationThread) => {
     setActiveThreadId(thread.id);
+    setActiveThread(thread);
     setIsLoading(true);
     try {
       const res = await fetch(`/api/conversations/${thread.id}`);
       const data = await res.json();
-      if (res.ok && data.messages) {
-        setMessages(
-          data.messages.map((m: any) => ({
-            role: m.senderRole === 'assistant' ? 'model' : 'user',
-            text: m.text,
-          }))
-        );
+      if (res.ok) {
+        if (data.thread) setActiveThread(data.thread);
+        if (data.messages) {
+          setMessages(
+            data.messages.map((m: any) => ({
+              id: m.id,
+              role: m.senderRole === 'assistant' ? 'model' : 'user',
+              senderRole: m.senderRole,
+              senderName: m.senderName,
+              text: m.text,
+              feedbackDirective: m.feedbackDirective,
+              createdAt: m.createdAt,
+            }))
+          );
+        }
       }
     } catch {
       // Fallback
@@ -126,11 +201,84 @@ export default function App() {
     }
   };
 
+  const handleSelectAiMode = async (mode: AiParticipationMode) => {
+    if (!activeThreadId) return;
+    try {
+      const res = await fetch(`/api/conversations/${activeThreadId}/mode`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      const data = await res.json();
+      if (res.ok && data.thread) {
+        setActiveThread(data.thread);
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
   const handleSend = async (textToSend?: string) => {
     const messageText = textToSend || input;
     if (!messageText.trim() || isLoading) return;
 
-    const userMsg: ChatMessage = { role: 'user', text: messageText.trim() };
+    // If conversation is already shared (tripartite consultation)
+    if (activeThread?.isShared) {
+      const userMsg: AppMessage = {
+        role: 'user',
+        senderRole: 'student',
+        senderName: user?.name || 'Estudiante',
+        text: messageText.trim(),
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setInput('');
+      setIsLoading(true);
+
+      try {
+        const res = await fetch(`/api/conversations/${activeThread.id}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: messageText.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al enviar mensaje');
+
+        setMessages((prev) => {
+          const withoutOptimistic = prev.slice(0, prev.length - 1);
+          const next: AppMessage[] = [
+            ...withoutOptimistic,
+            {
+              id: data.message.id,
+              role: 'user',
+              senderRole: data.message.senderRole,
+              senderName: data.message.senderName,
+              text: data.message.text,
+              createdAt: data.message.createdAt,
+            },
+          ];
+          if (data.aiMessage) {
+            next.push({
+              id: data.aiMessage.id,
+              role: 'model',
+              senderRole: 'assistant',
+              senderName: 'Maxister',
+              text: data.aiMessage.text,
+              createdAt: data.aiMessage.createdAt,
+            });
+          }
+          return next;
+        });
+      } catch (err: any) {
+        alert(err.message || 'Error al enviar mensaje en la consulta compartida');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Standard solo student chat with streaming
+    const userMsg: AppMessage = { role: 'user', senderRole: 'student', text: messageText.trim() };
     const newHistory = [...messages, userMsg];
     setMessages(newHistory);
     setInput('');
@@ -152,6 +300,7 @@ export default function App() {
         if (createRes.ok && createData.thread) {
           currentThreadId = createData.thread.id;
           setActiveThreadId(currentThreadId);
+          setActiveThread(createData.thread);
           loadThreads();
         }
       } catch {
@@ -177,14 +326,14 @@ export default function App() {
       const decoder = new TextDecoder();
       let assistantText = '';
 
-      setMessages([...newHistory, { role: 'model', text: '' }]);
+      setMessages([...newHistory, { role: 'model', senderRole: 'assistant', text: '' }]);
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         assistantText += chunk;
-        setMessages([...newHistory, { role: 'model', text: assistantText }]);
+        setMessages([...newHistory, { role: 'model', senderRole: 'assistant', text: assistantText }]);
       }
 
       if (currentThreadId) {
@@ -202,7 +351,7 @@ export default function App() {
     } catch (err: any) {
       setMessages([
         ...newHistory,
-        { role: 'model', text: `⚠️ Error de conexión: ${err?.message || 'Error desconocido'}` },
+        { role: 'model', senderRole: 'assistant', text: `⚠️ Error de conexión: ${err?.message || 'Error desconocido'}` },
       ]);
     } finally {
       setIsLoading(false);
@@ -211,9 +360,11 @@ export default function App() {
 
   const handleNewChat = () => {
     setActiveThreadId(null);
+    setActiveThread(null);
     setMessages([]);
     setInput('');
   };
+
 
   const handleLogout = async () => {
     try {
@@ -351,6 +502,31 @@ export default function App() {
 
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col items-center justify-between overflow-hidden relative">
+          {/* Active Teacher Presence Live Banner */}
+          {hasMessages && activeThread?.assignedTeacherId && (
+            <div className="w-full max-w-3xl px-4 pt-3 shrink-0 z-10 animate-fade-in">
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-[#5865F2]/20 via-[#5865F2]/10 to-transparent border border-[#5865F2]/30 flex items-center justify-between shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-xl bg-[#5865F2] flex items-center justify-center text-white shrink-0 shadow-md">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white flex items-center gap-2">
+                      <span>Profesor en sala: {activeThread.assignedTeacherName}</span>
+                      <span className="size-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    </p>
+                    <p className="text-[11px] text-white/60">
+                      Tu profesor se ha unido a esta consulta y te está guiando en vivo.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-[10px] px-2.5 py-1 rounded-full bg-white/10 text-white/90 font-mono font-medium hidden sm:block">
+                  1 a 1 En Vivo
+                </div>
+              </div>
+            </div>
+          )}
+
           {!hasMessages ? (
             /* Empty / Hero State */
             <div className="flex-1 w-full max-w-2xl px-4 flex flex-col items-center justify-center -mt-10">
@@ -414,34 +590,81 @@ export default function App() {
             /* Active Chat State */
             <div className="flex-1 w-full max-w-3xl overflow-y-auto px-4 py-6 space-y-6">
               {messages.map((msg, index) => {
-                const isBot = msg.role === 'model';
-                return (
-                  <div key={index} className="flex gap-4 items-start">
-                    <div
-                      className={`size-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                        isBot ? 'bg-paradiso text-white' : 'bg-white/20 text-white'
-                      }`}
-                    >
-                      {isBot ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                    </div>
+                const isBot = msg.senderRole === 'assistant' || msg.role === 'model';
+                const isTeacher = msg.senderRole === 'teacher';
 
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <div className="text-xs font-semibold text-white/50 mb-1.5 flex items-center gap-1.5">
-                        <span>{isBot ? 'Maxister' : user?.name ? user.name.split(' ')[0] : 'Tú'}</span>
-                        {isBot && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-paradiso-300 font-normal">
-                            Tutor
-                          </span>
+                return (
+                  <div key={msg.id || index} className="space-y-2">
+                    <div className="flex gap-4 items-start">
+                      <div
+                        className={`size-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs ${
+                          isBot
+                            ? 'bg-paradiso text-white'
+                            : isTeacher
+                            ? 'bg-[#5865F2] text-white'
+                            : 'bg-white/20 text-white'
+                        }`}
+                      >
+                        {isBot ? (
+                          <Bot className="w-4 h-4" />
+                        ) : isTeacher ? (
+                          <GraduationCap className="w-4 h-4" />
+                        ) : (
+                          <User className="w-4 h-4" />
                         )}
                       </div>
-                      {isBot ? (
-                        <MarkdownRenderer content={msg.text} />
-                      ) : (
-                        <div className="text-sm leading-relaxed text-[#ececec] whitespace-pre-wrap font-sans">
-                          {msg.text}
+
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="text-xs font-semibold text-white/50 mb-1.5 flex items-center gap-1.5">
+                          <span>
+                            {isBot
+                              ? 'Maxister'
+                              : isTeacher
+                              ? msg.senderName || 'Profesor'
+                              : user?.name
+                              ? user.name.split(' ')[0]
+                              : 'Tú'}
+                          </span>
+                          {isBot && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-paradiso-300 font-normal">
+                              Tutor IA
+                            </span>
+                          )}
+                          {isTeacher && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#5865F2]/20 text-[#5865F2] font-semibold">
+                              Profesor
+                            </span>
+                          )}
                         </div>
-                      )}
+
+                        {isBot ? (
+                          <MarkdownRenderer content={msg.text} />
+                        ) : (
+                          <div
+                            className={`text-sm leading-relaxed text-[#ececec] whitespace-pre-wrap font-sans ${
+                              isTeacher
+                                ? 'p-3.5 rounded-2xl bg-[#1e1e2e] border border-[#5865F2]/30 shadow-md'
+                                : ''
+                            }`}
+                          >
+                            {msg.text}
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Teacher feedback directive badge */}
+                    {msg.feedbackDirective && (
+                      <div className="ml-11 p-2.5 rounded-xl bg-paradiso/10 border border-paradiso/30 text-paradiso-300 text-xs flex items-start gap-2 animate-fade-in">
+                        <Brain className="w-4 h-4 shrink-0 mt-0.5 text-paradiso-300" />
+                        <div>
+                          <span className="font-bold block text-[11px] uppercase tracking-wider text-paradiso-200">
+                            Maxister aprendió de esta directriz del profesor:
+                          </span>
+                          <span className="italic text-white/90">"{msg.feedbackDirective.directiveContent}"</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -464,7 +687,16 @@ export default function App() {
 
           {/* Bottom Input (Only when chatting) */}
           {hasMessages && (
-            <div className="w-full max-w-3xl px-4 pb-4 pt-2 bg-[#181818]/90 backdrop-blur-sm shrink-0">
+            <div className="w-full max-w-3xl px-4 pb-4 pt-2 bg-[#181818]/90 backdrop-blur-sm shrink-0 space-y-2.5">
+              {/* Dynamic AI Mode Selector when Teacher is in room */}
+              {activeThread?.assignedTeacherId && (
+                <AiModeSelector
+                  currentMode={activeThread.aiMode}
+                  onSelectMode={handleSelectAiMode}
+                  disabled={isLoading}
+                />
+              )}
+
               <div className="bg-[#212121] border border-white/10 rounded-3xl p-2.5 shadow-2xl focus-within:border-white/20 transition-all">
                 <textarea
                   value={input}
@@ -475,7 +707,11 @@ export default function App() {
                       handleSend();
                     }
                   }}
-                  placeholder="Escribe tu mensaje a Maxister..."
+                  placeholder={
+                    activeThread?.assignedTeacherId
+                      ? 'Escribe tu mensaje en la consulta compartida...'
+                      : 'Escribe tu mensaje a Maxister...'
+                  }
                   rows={1}
                   disabled={isLoading}
                   className="w-full bg-transparent text-sm text-white placeholder-white/40 px-3 py-1.5 outline-none resize-none min-h-[38px] max-h-32"
@@ -485,7 +721,7 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1 text-[11px] font-medium text-white/50">
                       <Brain className="w-3 h-3 text-paradiso-300" />
-                      <span>Socrático</span>
+                      <span>{activeThread?.assignedTeacherId ? 'Tripartito' : 'Socrático'}</span>
                     </span>
                   </div>
 
@@ -500,13 +736,16 @@ export default function App() {
                 </div>
               </div>
 
-              <p className="text-[10px] text-center text-white/40 mt-2">
-                Maxister es un tutor pedagógico socrático. ¿Duda compleja? Usa el botón{' '}
-                <strong className="text-paradiso-300 font-medium">Compartir con el profesor</strong> para consultar directamente con un humano.
-              </p>
+              {!activeThread?.assignedTeacherId && (
+                <p className="text-[10px] text-center text-white/40 mt-2">
+                  Maxister es un tutor pedagógico socrático. ¿Duda compleja? Usa el botón{' '}
+                  <strong className="text-paradiso-300 font-medium">Compartir con el profesor</strong> para invitar a un humano a esta misma pantalla.
+                </p>
+              )}
             </div>
           )}
         </main>
+
       </div>
 
       {/* Modals */}
@@ -525,6 +764,12 @@ export default function App() {
         threadId={activeThreadId || undefined}
         onThreadCreated={(newId) => {
           setActiveThreadId(newId);
+          fetch(`/api/conversations/${newId}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.thread) setActiveThread(data.thread);
+            })
+            .catch(() => {});
           loadThreads();
         }}
       />

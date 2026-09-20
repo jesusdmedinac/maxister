@@ -11,6 +11,7 @@ maxister/
 ├── docs/
 │   ├── features/                 # BDD Specifications in Gherkin (.feature)
 │   │   ├── conversation_history.feature
+│   │   ├── dynamic_student_room.feature
 │   │   ├── knowledge_ingestion.feature
 │   │   ├── mcp_server.feature
 │   │   ├── socratic_agent.feature
@@ -63,7 +64,7 @@ maxister/
 │   │       └── memory.ts         # REST API endpoint managing student profile & notes
 │   └── styles/
 │       └── global.css            # Tailwind directives & dark theme base styles
-└── test/                         # Comprehensive Vitest test suites (agent, auth, conversations, governance, knowledge, mcp, memory, tripartite)
+└── test/                         # Comprehensive Vitest test suites (agent, auth, conversations, dynamic_room, governance, knowledge, mcp, memory, tripartite)
 ```
 
 ---

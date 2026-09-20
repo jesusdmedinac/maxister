@@ -55,3 +55,11 @@
 - [x] Scenario: In AI Auto mode, Maxister responds when a participant explicitly refers to it
 - [x] Scenario: Maxister automatically detects teacher pedagogical directive, saves it to TeacherFeedbackStore, and displays an explicit badge
 - [x] Scenario: Strategic teacher feedback tagged by student, teacher, and course is retrieved and applied in subsequent inquiries
+
+## ⚡ Feature 10: Dynamic In-Place Student Consultation & Teacher Reaction (`dynamic_student_room.feature`)
+- [x] Scenario: Student creates a shareable link for the teacher without leaving the main chat view
+- [x] Scenario: Main chat dynamically detects teacher arrival and displays teacher presence
+- [x] Scenario: Real-time synchronization of teacher messages and feedback directives directly in student chat
+- [x] Scenario: Dynamic activation and display of AI participation modes in student chat upon teacher arrival
+- [x] Scenario: Dynamic reversion when assigned teacher leaves or releases the consultation
+

@@ -110,9 +110,9 @@ export default function ShareTeacherModal({
             <Share2 className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Compartir con el Profesor</h2>
+            <h2 className="text-lg font-bold text-white">Invitar al Profesor a este Chat</h2>
             <p className="text-xs text-white/60">
-              Crea una sala interactiva donde tú, el profesor y Maxister interactúan juntos
+              Enlace exclusivo para que un profesor se una y te asista en tiempo real
             </p>
           </div>
         </div>
@@ -126,41 +126,36 @@ export default function ShareTeacherModal({
         {isLoading ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/60 text-xs">
             <Loader2 className="w-6 h-6 animate-spin text-paradiso" />
-            <span>Configurando sala compartida con el profesor...</span>
+            <span>Generando enlace exclusivo para el profesor...</span>
           </div>
         ) : (
           <div className="space-y-4">
             <p className="text-xs text-white/70 leading-relaxed">
-              Hemos preparado la sala para esta consulta. Cualquier profesor verificado de la academia podrá unirse, atender tu duda y guiarte en vivo junto con Maxister.
+              Comparte este enlace con tu profesor. <strong className="text-paradiso-300 font-medium">No necesitas salir de este chat</strong>: en cuanto tu profesor abra la consulta, esta misma pantalla se actualizará automáticamente en vivo.
             </p>
 
             {/* Share URL Box */}
-            <div className="flex items-center gap-2 bg-[#181818] border border-white/10 rounded-xl p-1.5 pl-3">
-              <input
-                type="text"
-                readOnly
-                value={shareUrl || ''}
-                className="bg-transparent text-xs text-white/80 w-full outline-none select-all font-mono"
-              />
-              <button
-                onClick={handleCopy}
-                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition shrink-0"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Copiado' : 'Copiar'}</span>
-              </button>
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider block">
+                Enlace para el profesor
+              </span>
+              <div className="flex items-center gap-2 bg-[#181818] border border-white/10 rounded-xl p-1.5 pl-3">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl || ''}
+                  className="bg-transparent text-xs text-white/80 w-full outline-none select-all font-mono"
+                />
+                <button
+                  onClick={handleCopy}
+                  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition shrink-0"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copiado' : 'Copiar'}</span>
+                </button>
+              </div>
             </div>
 
-            {/* Direct Link Button */}
-            {shareUrl && (
-              <a
-                href={shareUrl}
-                className="w-full py-2.5 px-4 rounded-xl bg-paradiso hover:bg-paradiso-600 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-paradiso/20 transition"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>Entrar a la Sala Interactiva</span>
-              </a>
-            )}
 
             {/* Teacher Contact Actions */}
             <div className="space-y-2 pt-2">
