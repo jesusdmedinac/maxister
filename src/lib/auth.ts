@@ -236,9 +236,13 @@ export class InMemoryAuthStore {
     };
   }
 
-  async authenticateRootAdmin(email: string, password: string): Promise<AuthResult> {
-    const rootEmail = process.env.ROOT_ADMIN_EMAIL || '';
-    const rootPassword = process.env.ROOT_ADMIN_PASSWORD || '';
+  async authenticateRootAdmin(
+    email: string,
+    password: string,
+    envOverrides?: { rootEmail?: string; rootPassword?: string }
+  ): Promise<AuthResult> {
+    const rootEmail = envOverrides?.rootEmail || process.env.ROOT_ADMIN_EMAIL || '';
+    const rootPassword = envOverrides?.rootPassword || process.env.ROOT_ADMIN_PASSWORD || '';
 
     if (!rootEmail || !rootPassword) {
       return {

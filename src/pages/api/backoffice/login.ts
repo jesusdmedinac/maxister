@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
+import { ROOT_ADMIN_EMAIL, ROOT_ADMIN_PASSWORD } from 'astro:env/server';
 import { defaultAuthStore } from '../../../lib/auth';
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
   try {
     const body = await request.json();
     const { email, password } = body;
@@ -13,7 +14,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       );
     }
 
-    const result = await defaultAuthStore.authenticateRootAdmin(email, password);
+    const runtimeEnv = (locals as any)?.runtime?.env;
+    const envRootEmail = ROOT_ADMIN_EMAIL || runtimeEnv?.ROOT_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL;
+    const envRootPassword = ROOT_ADMIN_PASSWORD || runtimeEnv?.ROOT_ADMIN_PASSWORD || process.env.ROOT_ADMIN_PASSWORD;
+
+    const result = await defaultAuthStore.authenticateRootAdmin(email, password, {
+      rootEmail: envRootEmail,
+      rootPassword: envRootPassword,
+    });
 
     if (!result.success || !result.user || !result.sessionToken) {
       return new Response(

@@ -23,6 +23,16 @@ export default defineConfig({
           optional: true,
           default: 'gemini-flash-lite-latest',
         }),
+        ROOT_ADMIN_EMAIL: envField.string({
+          context: 'server',
+          access: 'secret',
+          optional: true,
+        }),
+        ROOT_ADMIN_PASSWORD: envField.string({
+          context: 'server',
+          access: 'secret',
+          optional: true,
+        }),
       },
     },
   },
