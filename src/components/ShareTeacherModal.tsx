@@ -10,9 +10,18 @@ interface Props {
   messages: ChatMessage[];
   activeCourse?: string;
   threadId?: string;
+  onThreadCreated?: (threadId: string) => void;
 }
 
-export default function ShareTeacherModal({ isOpen, onClose, user, messages, activeCourse, threadId }: Props) {
+export default function ShareTeacherModal({
+  isOpen,
+  onClose,
+  user,
+  messages,
+  activeCourse,
+  threadId,
+  onThreadCreated,
+}: Props) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -30,12 +39,7 @@ export default function ShareTeacherModal({ isOpen, onClose, user, messages, act
 
     try {
       if (threadId) {
-        const res = await fetch(`/api/conversations/${threadId}/share`, { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Error al compartir sala');
-        setShareUrl(data.roomUrl);
-      } else {
-        const res = await fetch('/api/chat/share', {
+        const res = await fetch(`/api/conversations/${threadId}/share`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -44,8 +48,25 @@ export default function ShareTeacherModal({ isOpen, onClose, user, messages, act
           }),
         });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al compartir sala');
+        setShareUrl(data.roomUrl);
+      } else {
+        const res = await fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: messages[0]?.text?.substring(0, 35) + '...' || 'Consulta con el profesor',
+            courseId: activeCourse || user?.activeCourse,
+            messages,
+            isShared: true,
+          }),
+        });
+        const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error al generar enlace');
-        setShareUrl(data.shareUrl);
+        setShareUrl(data.roomUrl);
+        if (data.thread?.id) {
+          onThreadCreated?.(data.thread.id);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'No se pudo generar el enlace');
@@ -53,6 +74,7 @@ export default function ShareTeacherModal({ isOpen, onClose, user, messages, act
       setIsLoading(false);
     }
   };
+
 
   const handleCopy = async () => {
     if (!shareUrl) return;

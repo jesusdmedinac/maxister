@@ -238,6 +238,65 @@ export class InMemoryConversationStore {
     return messages.filter((m) => new Date(m.createdAt).getTime() > sinceDate);
   }
 
+  async importMessages(
+    threadId: string,
+    messages: { role: string; text: string; senderRole?: string; senderName?: string; senderId?: string }[],
+    studentInfo?: { id: string; name: string }
+  ): Promise<RoomMessage[]> {
+    const thread = this.threads.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread ${threadId} not found`);
+    }
+
+    const existing = this.messagesByThread.get(threadId) || [];
+    const existingKeys = new Set(existing.map((m) => `${m.senderRole}:${m.text.trim()}`));
+
+    const baseTime = Date.now() - (messages.length + 1) * 1000;
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (!msg.text || !msg.text.trim()) continue;
+
+      const isBot = msg.role === 'model' || msg.role === 'assistant' || msg.senderRole === 'assistant';
+      const senderRole: 'student' | 'teacher' | 'assistant' = isBot
+        ? 'assistant'
+        : (msg.senderRole as any) || 'student';
+      const senderName = isBot
+        ? 'Maxister'
+        : msg.senderName || studentInfo?.name || 'Estudiante';
+      const senderId = isBot
+        ? 'maxister_ai'
+        : msg.senderId || studentInfo?.id || thread.userId;
+
+      const key = `${senderRole}:${msg.text.trim()}`;
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      const id = generateId('msg');
+      const createdAt = new Date(baseTime + (existing.length + i) * 1000).toISOString();
+
+      const roomMsg: RoomMessage = {
+        id,
+        threadId,
+        senderId,
+        senderName,
+        senderRole,
+        text: msg.text.trim(),
+        createdAt,
+      };
+
+      existing.push(roomMsg);
+      existingKeys.add(key);
+    }
+
+    this.messagesByThread.set(threadId, existing);
+    thread.updatedAt = new Date().toISOString();
+    this.threads.set(threadId, thread);
+
+    return existing;
+  }
+
   async addTeacherFeedback(
     entry: Omit<TeacherFeedbackEntry, 'id' | 'status' | 'createdAt' | 'updatedAt'> & {
       status?: FeedbackStatus;

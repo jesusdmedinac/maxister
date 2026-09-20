@@ -53,7 +53,44 @@ describe('Feature 8: Multi-Thread Conversation History & 1-to-1 Shared Rooms', (
       expect(shared?.isShared).toBe(true);
       expect(shared?.aiMode).toBe('auto'); // Transitions automatically to AI Auto
     });
+
+    it('should import and persist all active chat messages when student shares conversation', async () => {
+      const thread = await convStore.createThread('student_123', 'Duda de Bucles', 'kotlin-beginners');
+
+      const chatHistory = [
+        { role: 'user', text: '¿Por qué mi bucle for es infinito?' },
+        { role: 'model', text: 'Revisa la condición de parada: ¿se está incrementando el índice?' },
+        { role: 'user', text: 'No lo incrementé. Ya lo cambié pero sigue fallando.' },
+      ];
+
+      // Import conversation messages
+      const imported = await convStore.importMessages(thread.id, chatHistory, {
+        id: 'student_123',
+        name: 'Mariana',
+      });
+
+      expect(imported.length).toBe(3);
+      expect(imported[0].senderRole).toBe('student');
+      expect(imported[0].senderName).toBe('Mariana');
+      expect(imported[0].text).toBe('¿Por qué mi bucle for es infinito?');
+
+      expect(imported[1].senderRole).toBe('assistant');
+      expect(imported[1].senderName).toBe('Maxister');
+      expect(imported[1].text).toBe('Revisa la condición de parada: ¿se está incrementando el índice?');
+
+      // Verify no duplicates on subsequent sync
+      const afterSync = await convStore.importMessages(thread.id, chatHistory, {
+        id: 'student_123',
+        name: 'Mariana',
+      });
+      expect(afterSync.length).toBe(3);
+
+      // Verify messages are readable for the room
+      const roomMessages = await convStore.getMessages(thread.id);
+      expect(roomMessages.length).toBe(3);
+    });
   });
+
 
   describe('Scenario 3: Teacher views separate sections for personal chats and student shared consultations', () => {
     it('should separate personal teacher threads from shared student consultations', async () => {

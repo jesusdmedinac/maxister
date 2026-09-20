@@ -39,30 +39,46 @@ export const GET: APIRoute = async ({ cookies }) => {
   }
 };
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, url }) => {
   try {
     const sessionToken = cookies.get('maxister_session')?.value;
     let userId = 'guest_user';
+    let userName = 'Estudiante';
     let defaultCourse = 'para-no-programadores';
 
     if (sessionToken) {
       const user = await defaultAuthStore.validateSession(sessionToken);
       if (user) {
         userId = user.id;
+        userName = user.name;
         defaultCourse = user.activeCourse;
       }
     }
 
     const body = await request.json();
-    const { title, courseId } = body;
+    const { title, courseId, messages = [], isShared = false } = body;
 
-    const thread = await defaultConversationStore.createThread(
+    let thread = await defaultConversationStore.createThread(
       userId,
       title || 'Nueva Consulta',
       courseId || defaultCourse
     );
 
-    return new Response(JSON.stringify({ thread }), {
+    if (Array.isArray(messages) && messages.length > 0) {
+      await defaultConversationStore.importMessages(thread.id, messages, {
+        id: userId,
+        name: userName,
+      });
+    }
+
+    if (isShared) {
+      const sharedThread = await defaultConversationStore.shareThread(thread.id);
+      if (sharedThread) thread = sharedThread;
+    }
+
+    const roomUrl = `${url.origin}/room/${thread.id}`;
+
+    return new Response(JSON.stringify({ thread, roomUrl }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' },
     });

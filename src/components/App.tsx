@@ -186,6 +186,19 @@ export default function App() {
         assistantText += chunk;
         setMessages([...newHistory, { role: 'model', text: assistantText }]);
       }
+
+      if (currentThreadId) {
+        fetch(`/api/conversations/${currentThreadId}/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              ...newHistory,
+              { role: 'model', text: assistantText },
+            ],
+          }),
+        }).catch(() => {});
+      }
     } catch (err: any) {
       setMessages([
         ...newHistory,
@@ -510,6 +523,10 @@ export default function App() {
         messages={messages}
         activeCourse={user?.activeCourse}
         threadId={activeThreadId || undefined}
+        onThreadCreated={(newId) => {
+          setActiveThreadId(newId);
+          loadThreads();
+        }}
       />
     </div>
   );
