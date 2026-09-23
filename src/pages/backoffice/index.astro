@@ -2,14 +2,39 @@
 import Layout from '../../layouts/Layout.astro';
 import TeacherManager from '../../components/backoffice/TeacherManager';
 import FeedbackManager from '../../components/backoffice/FeedbackManager';
-import { defaultAuthStore } from '../../lib/auth';
+import { defaultAuthStore, extractCloudflareAccessEmail, authenticateDelegatedAdmin } from '../../lib/auth';
 import { defaultConversationStore } from '../../lib/conversations';
+import { ROOT_ADMIN_EMAILS } from 'astro:env/server';
 
 const sessionToken = Astro.cookies.get('maxister_session')?.value;
 let user = null;
 
 if (sessionToken) {
   user = await defaultAuthStore.validateSession(sessionToken);
+}
+
+// If no valid session but Cloudflare Access header is present, auto-authenticate
+if (!user || user.role !== 'root_admin') {
+  const cfAccessEmail = extractCloudflareAccessEmail(Astro.request);
+  if (cfAccessEmail) {
+    const runtimeEnv = (Astro.locals as any)?.runtime?.env;
+    const allowedEmails =
+      ROOT_ADMIN_EMAILS ||
+      runtimeEnv?.ROOT_ADMIN_EMAILS ||
+      process.env.ROOT_ADMIN_EMAILS ||
+      'admin@desde0.dev';
+    const delegated = await authenticateDelegatedAdmin(cfAccessEmail, allowedEmails, defaultAuthStore);
+    if (delegated.authorized && delegated.user && delegated.sessionToken) {
+      user = delegated.user;
+      Astro.cookies.set('maxister_session', delegated.sessionToken, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: import.meta.env.PROD,
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    }
+  }
 }
 
 if (!user || user.role !== 'root_admin') {

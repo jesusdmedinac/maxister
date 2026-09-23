@@ -85,8 +85,8 @@
 
 ## 🗄️ Feature 14: Cloudflare D1 Relational Persistence & Delegated Authentication (`cloudflare_d1_and_delegated_auth.feature`)
 - [x] Scenario: Initial D1 schema creation and table initialization
-- [ ] Scenario: Delegated Root Admin authentication via Cloudflare Access headers without plain-text passwords
-- [ ] Scenario: Unauthorized email rejected for Delegated Root Admin access
+- [x] Scenario: Delegated Root Admin authentication via Cloudflare Access headers without plain-text passwords
+- [x] Scenario: Unauthorized email rejected for Delegated Root Admin access
 - [ ] Scenario: User registration, PBKDF2 hashing, and session persistence in D1
 - [ ] Scenario: Multi-thread conversations, message history, and room sharing in D1
 - [ ] Scenario: Teacher strategic feedback directives and revert lifecycle in D1

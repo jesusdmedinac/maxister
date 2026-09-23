@@ -13,8 +13,8 @@ export interface UserAccount {
 }
 
 interface UserRecord extends UserAccount {
-  passwordHash: string;
-  salt: string;
+  passwordHash?: string;
+  salt?: string;
 }
 
 export interface Session {
@@ -282,6 +282,28 @@ export class InMemoryAuthStore {
     };
   }
 
+  async getOrCreateDelegatedAdmin(email: string, name?: string): Promise<UserAccount> {
+    const normalizedEmail = email.trim().toLowerCase();
+    let record = this.usersByEmail.get(normalizedEmail);
+    if (!record) {
+      const now = new Date().toISOString();
+      const id = `adm_${generateSessionToken().substring(0, 12)}`;
+      record = {
+        id,
+        name: name || 'Root Administrator',
+        email: normalizedEmail,
+        role: 'root_admin',
+        activeCourse: 'all',
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.usersByEmail.set(normalizedEmail, record);
+      this.usersById.set(id, record);
+    }
+    return sanitizeUser(record);
+  }
+
   canAccessBackoffice(user: UserAccount | null): boolean {
     return user !== null && user.role === 'root_admin';
   }
@@ -455,3 +477,61 @@ export class InMemoryAuthStore {
 }
 
 export const defaultAuthStore = new InMemoryAuthStore();
+
+export function extractCloudflareAccessEmail(request: Request): string | null {
+  const email = request.headers.get('cf-access-authenticated-user-email');
+  if (!email || !email.trim()) return null;
+  return email.trim().toLowerCase();
+}
+
+export function parseAllowedAdminEmails(emailsConfig?: string): string[] {
+  if (!emailsConfig) return [];
+  return emailsConfig
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export interface DelegatedAuthResult {
+  authorized: boolean;
+  email?: string;
+  user?: UserAccount;
+  sessionToken?: string;
+  error?: string;
+}
+
+export async function authenticateDelegatedAdmin(
+  email: string | null | undefined,
+  allowedEmailsConfig?: string,
+  store: {
+    getOrCreateDelegatedAdmin(email: string, name?: string): Promise<UserAccount>;
+    createSession(userId: string, role?: UserRole): Promise<Session>;
+  } = defaultAuthStore
+): Promise<DelegatedAuthResult> {
+  if (!email) {
+    return {
+      authorized: false,
+      error: 'No se detectó identidad de Cloudflare Access en la solicitud.',
+    };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const allowedList = parseAllowedAdminEmails(allowedEmailsConfig);
+
+  if (!allowedList.includes(normalizedEmail)) {
+    return {
+      authorized: false,
+      error: `El correo "${normalizedEmail}" no está autorizado para acceder al Backoffice.`,
+    };
+  }
+
+  const user = await store.getOrCreateDelegatedAdmin(normalizedEmail);
+  const session = await store.createSession(user.id, 'root_admin');
+
+  return {
+    authorized: true,
+    email: user.email,
+    user,
+    sessionToken: session.token,
+  };
+}

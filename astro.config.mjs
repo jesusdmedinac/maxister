@@ -8,6 +8,7 @@ export default defineConfig({
   output: 'server',
   adapter: cloudflare({
     imageService: 'passthrough',
+    platformProxy: { enabled: true, persist: true },
   }),
   experimental: {
     env: {
@@ -32,6 +33,18 @@ export default defineConfig({
           context: 'server',
           access: 'secret',
           optional: true,
+        }),
+        ROOT_ADMIN_EMAILS: envField.string({
+          context: 'server',
+          access: 'secret',
+          optional: true,
+          default: 'admin@desde0.dev',
+        }),
+        DEV_ROOT_ADMIN_EMAIL: envField.string({
+          context: 'server',
+          access: 'public',
+          optional: true,
+          default: 'admin@desde0.dev',
         }),
       },
     },
