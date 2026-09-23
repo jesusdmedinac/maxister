@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { defaultAuthStore } from '../../../lib/auth';
-import { defaultMemoryStore } from '../../../lib/memory';
+import { getAuthStore } from '../../../lib/auth';
+import { getStudentMemoryStore } from '../../../lib/memory';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
@@ -10,8 +10,12 @@ const registerSchema = z.object({
   activeCourse: z.string().optional(),
 });
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+    const memStore = getStudentMemoryStore(db);
+
     const body = await request.json();
     const parsed = registerSchema.safeParse(body);
 
@@ -24,7 +28,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     const { name, email, password, activeCourse } = parsed.data;
-    const result = await defaultAuthStore.registerUser({
+    const result = await authStore.registerUser({
       name,
       email,
       password,
@@ -39,7 +43,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     // Initialize student profile in MemoryStore
-    await defaultMemoryStore.createOrGetStudent(
+    await memStore.createOrGetStudent(
       result.user.id,
       result.user.name,
       result.user.activeCourse

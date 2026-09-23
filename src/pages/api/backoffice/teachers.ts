@@ -1,16 +1,19 @@
 import type { APIRoute } from 'astro';
-import { defaultAuthStore } from '../../../lib/auth';
+import { getAuthStore } from '../../../lib/auth';
 
-async function requireRootAdmin(cookies: any) {
+async function requireRootAdmin(cookies: any, authStore: any) {
   const token = cookies.get('maxister_session')?.value;
   if (!token) return null;
-  const user = await defaultAuthStore.validateSession(token);
+  const user = await authStore.validateSession(token);
   if (!user || user.role !== 'root_admin') return null;
   return user;
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
-  const admin = await requireRootAdmin(cookies);
+export const GET: APIRoute = async ({ cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+
+  const admin = await requireRootAdmin(cookies, authStore);
   if (!admin) {
     return new Response(JSON.stringify({ error: 'Acceso denegado: se requiere rol root_admin' }), {
       status: 403,
@@ -18,15 +21,18 @@ export const GET: APIRoute = async ({ cookies }) => {
     });
   }
 
-  const teachers = await defaultAuthStore.listTeachers();
+  const teachers = await authStore.listTeachers();
   return new Response(JSON.stringify({ teachers }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
 };
 
-export const POST: APIRoute = async ({ request, cookies }) => {
-  const admin = await requireRootAdmin(cookies);
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+
+  const admin = await requireRootAdmin(cookies, authStore);
   if (!admin) {
     return new Response(JSON.stringify({ error: 'Acceso denegado: se requiere rol root_admin' }), {
       status: 403,
@@ -45,7 +51,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    const result = await defaultAuthStore.createTeacher({
+    const result = await authStore.createTeacher({
       name,
       email,
       password,
@@ -71,8 +77,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 };
 
-export const PATCH: APIRoute = async ({ request, cookies }) => {
-  const admin = await requireRootAdmin(cookies);
+export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+
+  const admin = await requireRootAdmin(cookies, authStore);
   if (!admin) {
     return new Response(JSON.stringify({ error: 'Acceso denegado: se requiere rol root_admin' }), {
       status: 403,
@@ -91,7 +100,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    const success = await defaultAuthStore.setTeacherStatus(teacherId, isActive);
+    const success = await authStore.setTeacherStatus(teacherId, isActive);
     if (!success) {
       return new Response(JSON.stringify({ error: 'Profesor no encontrado' }), {
         status: 404,

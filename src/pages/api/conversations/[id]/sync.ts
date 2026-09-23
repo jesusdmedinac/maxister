@@ -1,8 +1,11 @@
 import type { APIRoute } from 'astro';
-import { defaultConversationStore } from '../../../../lib/conversations';
-import { defaultAuthStore } from '../../../../lib/auth';
+import { getConversationStore } from '../../../../lib/conversations';
+import { getAuthStore } from '../../../../lib/auth';
 
-export const GET: APIRoute = async ({ params, url }) => {
+export const GET: APIRoute = async ({ params, url, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const convStore = getConversationStore(db);
+
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: 'id requerido' }), {
@@ -11,7 +14,7 @@ export const GET: APIRoute = async ({ params, url }) => {
     });
   }
 
-  const thread = await defaultConversationStore.getThread(id);
+  const thread = await convStore.getThread(id);
   if (!thread) {
     return new Response(JSON.stringify({ error: 'Conversación no encontrada' }), {
       status: 404,
@@ -20,7 +23,7 @@ export const GET: APIRoute = async ({ params, url }) => {
   }
 
   const since = url.searchParams.get('since') || undefined;
-  const newMessages = await defaultConversationStore.getMessages(id, since);
+  const newMessages = await convStore.getMessages(id, since);
 
   return new Response(JSON.stringify({ thread, newMessages }), {
     status: 200,
@@ -31,7 +34,11 @@ export const GET: APIRoute = async ({ params, url }) => {
   });
 };
 
-export const POST: APIRoute = async ({ params, request, cookies }) => {
+export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: 'id requerido' }), {
@@ -40,7 +47,7 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
     });
   }
 
-  const thread = await defaultConversationStore.getThread(id);
+  const thread = await convStore.getThread(id);
   if (!thread) {
     return new Response(JSON.stringify({ error: 'Conversación no encontrada' }), {
       status: 404,
@@ -55,13 +62,13 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
     let studentInfo = { id: thread.userId, name: 'Estudiante' };
     const sessionToken = cookies.get('maxister_session')?.value;
     if (sessionToken) {
-      const user = await defaultAuthStore.validateSession(sessionToken);
+      const user = await authStore.validateSession(sessionToken);
       if (user) {
         studentInfo = { id: user.id, name: user.name };
       }
     }
 
-    const allMessages = await defaultConversationStore.importMessages(id, messages, studentInfo);
+    const allMessages = await convStore.importMessages(id, messages, studentInfo);
 
     return new Response(JSON.stringify({ success: true, count: allMessages.length, messages: allMessages }), {
       status: 200,
@@ -74,4 +81,3 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
     });
   }
 };
-

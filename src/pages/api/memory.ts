@@ -1,27 +1,33 @@
 import type { APIRoute } from 'astro';
-import { defaultMemoryStore } from '../../lib/memory';
+import { getStudentMemoryStore } from '../../lib/memory';
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const memStore = getStudentMemoryStore(db);
+
   const url = new URL(request.url);
   const studentId = url.searchParams.get('studentId');
 
   if (!studentId) {
-    const all = await defaultMemoryStore.listStudents();
+    const all = await memStore.listStudents();
     return new Response(JSON.stringify({ students: all }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  const student = await defaultMemoryStore.createOrGetStudent(studentId, studentId);
+  const student = await memStore.createOrGetStudent(studentId, studentId);
   return new Response(JSON.stringify({ student }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const memStore = getStudentMemoryStore(db);
+
     const body = await request.json();
     const { studentId, name, activeCourse, update } = body;
 
@@ -32,14 +38,14 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    let student = await defaultMemoryStore.createOrGetStudent(
+    let student = await memStore.createOrGetStudent(
       studentId,
       name || studentId,
       activeCourse || 'para-no-programadores'
     );
 
     if (update) {
-      student = (await defaultMemoryStore.updateProgress(studentId, update)) || student;
+      student = (await memStore.updateProgress(studentId, update)) || student;
     }
 
     return new Response(JSON.stringify({ student }), {

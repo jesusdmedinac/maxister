@@ -1,19 +1,23 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import TripartiteRoom from '../../components/TripartiteRoom';
-import { defaultAuthStore } from '../../lib/auth';
-import { defaultConversationStore } from '../../lib/conversations';
+import { getAuthStore } from '../../lib/auth';
+import { getConversationStore } from '../../lib/conversations';
+
+const db = (Astro.locals as any)?.runtime?.env?.DB;
+const authStore = getAuthStore(db);
+const convStore = getConversationStore(db);
 
 const { id } = Astro.params;
-const thread = id ? await defaultConversationStore.getThread(id) : null;
+const thread = id ? await convStore.getThread(id) : null;
 
 const sessionToken = Astro.cookies.get('maxister_session')?.value;
 let user = null;
 if (sessionToken) {
-  user = await defaultAuthStore.validateSession(sessionToken);
+  user = await authStore.validateSession(sessionToken);
 }
 
-const initialMessages = thread ? await defaultConversationStore.getMessages(thread.id) : [];
+const initialMessages = thread ? await convStore.getMessages(thread.id) : [];
 ---
 
 <Layout title={thread ? `Sala: ${thread.title} — Maxister` : "Sala no encontrada"}>

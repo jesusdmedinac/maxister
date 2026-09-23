@@ -1,9 +1,13 @@
 import type { APIRoute } from 'astro';
-import { defaultAuthStore } from '../../../lib/auth';
-import { defaultConversationStore } from '../../../lib/conversations';
+import { getAuthStore } from '../../../lib/auth';
+import { getConversationStore } from '../../../lib/conversations';
 
-export const GET: APIRoute = async ({ cookies }) => {
+export const GET: APIRoute = async ({ cookies, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+    const convStore = getConversationStore(db);
+
     const sessionToken = cookies.get('maxister_session')?.value;
     if (!sessionToken) {
       return new Response(JSON.stringify({ userThreads: [], sharedThreads: [] }), {
@@ -12,7 +16,7 @@ export const GET: APIRoute = async ({ cookies }) => {
       });
     }
 
-    const user = await defaultAuthStore.validateSession(sessionToken);
+    const user = await authStore.validateSession(sessionToken);
     if (!user) {
       return new Response(JSON.stringify({ userThreads: [], sharedThreads: [] }), {
         status: 200,
@@ -20,11 +24,11 @@ export const GET: APIRoute = async ({ cookies }) => {
       });
     }
 
-    const userThreads = await defaultConversationStore.listUserThreads(user.id);
+    const userThreads = await convStore.listUserThreads(user.id);
     let sharedThreads: any[] = [];
 
     if (user.role === 'teacher' || user.role === 'root_admin') {
-      sharedThreads = await defaultConversationStore.listSharedThreads();
+      sharedThreads = await convStore.listSharedThreads();
     }
 
     return new Response(JSON.stringify({ userThreads, sharedThreads }), {
@@ -39,15 +43,19 @@ export const GET: APIRoute = async ({ cookies }) => {
   }
 };
 
-export const POST: APIRoute = async ({ request, cookies, url }) => {
+export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+    const convStore = getConversationStore(db);
+
     const sessionToken = cookies.get('maxister_session')?.value;
     let userId = 'guest_user';
     let userName = 'Estudiante';
     let defaultCourse = 'para-no-programadores';
 
     if (sessionToken) {
-      const user = await defaultAuthStore.validateSession(sessionToken);
+      const user = await authStore.validateSession(sessionToken);
       if (user) {
         userId = user.id;
         userName = user.name;
@@ -58,21 +66,21 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     const body = await request.json();
     const { title, courseId, messages = [], isShared = false } = body;
 
-    let thread = await defaultConversationStore.createThread(
+    let thread = await convStore.createThread(
       userId,
       title || 'Nueva Consulta',
       courseId || defaultCourse
     );
 
     if (Array.isArray(messages) && messages.length > 0) {
-      await defaultConversationStore.importMessages(thread.id, messages, {
+      await convStore.importMessages(thread.id, messages, {
         id: userId,
         name: userName,
       });
     }
 
     if (isShared) {
-      const sharedThread = await defaultConversationStore.shareThread(thread.id);
+      const sharedThread = await convStore.shareThread(thread.id);
       if (sharedThread) thread = sharedThread;
     }
 

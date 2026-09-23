@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { GEMINI_API_KEY, GEMINI_MODEL } from 'astro:env/server';
-import { defaultAuthStore } from '../../../../lib/auth';
-import { defaultConversationStore } from '../../../../lib/conversations';
+import { getAuthStore } from '../../../../lib/auth';
+import { getConversationStore } from '../../../../lib/conversations';
 import {
   shouldAiRespond,
   detectTeacherDirective,
@@ -10,6 +10,10 @@ import {
 import { GoogleGenAI } from '@google/genai';
 
 export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: 'id requerido' }), {
@@ -18,7 +22,7 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
     });
   }
 
-  const thread = await defaultConversationStore.getThread(id);
+  const thread = await convStore.getThread(id);
   if (!thread) {
     return new Response(JSON.stringify({ error: 'Conversación no encontrada' }), {
       status: 404,
@@ -44,7 +48,7 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
     let senderRole: 'student' | 'teacher' | 'assistant' = 'student';
 
     if (sessionToken) {
-      const user = await defaultAuthStore.validateSession(sessionToken);
+      const user = await authStore.validateSession(sessionToken);
       if (user) {
         senderId = user.id;
         senderName = user.name;
@@ -85,7 +89,7 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
     if (senderRole === 'teacher') {
       const detection = detectTeacherDirective(text);
       if (detection.isDirective) {
-        const feedbackEntry = await defaultConversationStore.addTeacherFeedback({
+        const feedbackEntry = await convStore.addTeacherFeedback({
           teacherId: senderId,
           teacherName: senderName,
           studentId: thread.userId,
@@ -108,7 +112,7 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
     }
 
     // Save posted message
-    const savedUserMessage = await defaultConversationStore.addMessage(id, {
+    const savedUserMessage = await convStore.addMessage(id, {
       senderId,
       senderName,
       senderRole,
@@ -128,14 +132,14 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
 
     if (mustRespond) {
       // Gather room context and previous messages
-      const allMessages = await defaultConversationStore.getMessages(id);
+      const allMessages = await convStore.getMessages(id);
       const history = allMessages.slice(-10).map((m) => ({
         role: m.senderRole === 'assistant' ? ('model' as const) : ('user' as const),
         text: `[${m.senderName} (${m.senderRole})]: ${m.text}`,
       }));
 
       // Gather approved strategic teacher feedback for this course
-      const strategicFeedback = await defaultConversationStore.getStrategicFeedback(
+      const strategicFeedback = await convStore.getStrategicFeedback(
         thread.courseId,
         text
       );
@@ -182,7 +186,7 @@ export const POST: APIRoute = async ({ params, request, cookies, locals }) => {
         }
       }
 
-      savedAiMessage = await defaultConversationStore.addMessage(id, {
+      savedAiMessage = await convStore.addMessage(id, {
         senderId: 'maxister_ai',
         senderName: 'Maxister',
         senderRole: 'assistant',

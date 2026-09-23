@@ -87,3 +87,19 @@ export class MemoryStore {
 }
 
 export const defaultMemoryStore = new MemoryStore();
+
+import { D1StudentMemoryStore } from './d1/memory';
+import { initializeD1Schema, type D1Database } from './d1/db';
+
+const d1MemStoreCache = new WeakMap<object, D1StudentMemoryStore>();
+
+export function getStudentMemoryStore(db?: D1Database): MemoryStore | D1StudentMemoryStore {
+  if (!db) return defaultMemoryStore;
+  let store = d1MemStoreCache.get(db as object);
+  if (!store) {
+    initializeD1Schema(db);
+    store = new D1StudentMemoryStore(db);
+    d1MemStoreCache.set(db as object, store);
+  }
+  return store;
+}

@@ -2,11 +2,15 @@ import type { APIRoute } from 'astro';
 import { GEMINI_API_KEY, GEMINI_MODEL } from 'astro:env/server';
 import { searchKnowledge, listCourses } from '../../lib/knowledge';
 import { streamChatWithMaxister, detectTeacherDirective } from '../../lib/agent';
-import { defaultAuthStore } from '../../lib/auth';
-import { defaultConversationStore } from '../../lib/conversations';
+import { getAuthStore } from '../../lib/auth';
+import { getConversationStore } from '../../lib/conversations';
 
 export const POST: APIRoute = async ({ request, locals, cookies }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+    const convStore = getConversationStore(db);
+
     const body = await request.json();
     const { message, history = [] } = body;
 
@@ -30,7 +34,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
     let authenticatedUser: any = null;
 
     if (sessionToken) {
-      const user = await defaultAuthStore.validateSession(sessionToken);
+      const user = await authStore.validateSession(sessionToken);
       if (user) {
         authenticatedUser = user;
         userRole = user.role;
@@ -48,7 +52,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
     if (authenticatedUser && (userRole === 'teacher' || userRole === 'root_admin')) {
       const detection = detectTeacherDirective(message);
       if (detection.isDirective) {
-        const feedbackEntry = await defaultConversationStore.addTeacherFeedback({
+        const feedbackEntry = await convStore.addTeacherFeedback({
           teacherId: authenticatedUser.id,
           teacherName: authenticatedUser.name,
           studentId: 'general',

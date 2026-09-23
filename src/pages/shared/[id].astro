@@ -1,10 +1,13 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import SharedChatView from '../../components/SharedChatView';
-import { defaultAuthStore } from '../../lib/auth';
+import { getAuthStore } from '../../lib/auth';
+
+const db = (Astro.locals as any)?.runtime?.env?.DB;
+const authStore = getAuthStore(db);
 
 const { id } = Astro.params;
-const snapshot = id ? await defaultAuthStore.getSharedChat(id) : null;
+const snapshot = id ? await authStore.getSharedChat(id) : null;
 ---
 
 <Layout title={snapshot ? `Conversación de ${snapshot.studentName} — Maxister` : "Conversación no encontrada"}>

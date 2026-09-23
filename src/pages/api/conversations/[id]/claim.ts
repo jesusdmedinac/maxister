@@ -1,8 +1,12 @@
 import type { APIRoute } from 'astro';
-import { defaultAuthStore } from '../../../../lib/auth';
-import { defaultConversationStore } from '../../../../lib/conversations';
+import { getAuthStore } from '../../../../lib/auth';
+import { getConversationStore } from '../../../../lib/conversations';
 
-export const POST: APIRoute = async ({ params, cookies }) => {
+export const POST: APIRoute = async ({ params, cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: 'id requerido' }), {
@@ -19,7 +23,7 @@ export const POST: APIRoute = async ({ params, cookies }) => {
     });
   }
 
-  const user = await defaultAuthStore.validateSession(sessionToken);
+  const user = await authStore.validateSession(sessionToken);
   if (!user || (user.role !== 'teacher' && user.role !== 'root_admin')) {
     return new Response(JSON.stringify({ error: 'Solo profesores verificados pueden atender consultas' }), {
       status: 403,
@@ -27,7 +31,7 @@ export const POST: APIRoute = async ({ params, cookies }) => {
     });
   }
 
-  const result = await defaultConversationStore.claimThreadByTeacher(id, user.id, user.name);
+  const result = await convStore.claimThreadByTeacher(id, user.id, user.name);
 
   if (!result.success || !result.thread) {
     return new Response(JSON.stringify({ error: result.error || 'Error al atender la consulta' }), {

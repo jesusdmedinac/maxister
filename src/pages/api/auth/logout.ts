@@ -1,12 +1,15 @@
 import type { APIRoute } from 'astro';
-import { defaultAuthStore } from '../../../lib/auth';
+import { getAuthStore } from '../../../lib/auth';
 
-export const POST: APIRoute = async ({ cookies }) => {
+export const POST: APIRoute = async ({ cookies, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+
     const sessionToken = cookies.get('maxister_session')?.value;
 
     if (sessionToken) {
-      await defaultAuthStore.revokeSession(sessionToken);
+      await authStore.revokeSession(sessionToken);
     }
 
     cookies.delete('maxister_session', { path: '/' });

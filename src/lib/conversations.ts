@@ -417,3 +417,19 @@ export class InMemoryConversationStore {
 }
 
 export const defaultConversationStore = new InMemoryConversationStore();
+
+import { D1ConversationStore } from './d1/conversations';
+import { initializeD1Schema, type D1Database } from './d1/db';
+
+const d1ConvStoreCache = new WeakMap<object, D1ConversationStore>();
+
+export function getConversationStore(db?: D1Database): InMemoryConversationStore | D1ConversationStore {
+  if (!db) return defaultConversationStore;
+  let store = d1ConvStoreCache.get(db as object);
+  if (!store) {
+    initializeD1Schema(db);
+    store = new D1ConversationStore(db);
+    d1ConvStoreCache.set(db as object, store);
+  }
+  return store;
+}

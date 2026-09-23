@@ -1,7 +1,10 @@
 import type { APIRoute } from 'astro';
-import { defaultConversationStore, type AiParticipationMode } from '../../../../lib/conversations';
+import { getConversationStore, type AiParticipationMode } from '../../../../lib/conversations';
 
-export const PATCH: APIRoute = async ({ params, request }) => {
+export const PATCH: APIRoute = async ({ params, request, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const convStore = getConversationStore(db);
+
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: 'id requerido' }), {
@@ -21,7 +24,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       });
     }
 
-    const thread = await defaultConversationStore.setAiMode(id, mode);
+    const thread = await convStore.setAiMode(id, mode);
     if (!thread) {
       return new Response(JSON.stringify({ error: 'Conversación no encontrada' }), {
         status: 404,

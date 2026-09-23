@@ -1,8 +1,12 @@
 import type { APIRoute } from 'astro';
-import { defaultConversationStore } from '../../../../lib/conversations';
-import { defaultAuthStore } from '../../../../lib/auth';
+import { getConversationStore } from '../../../../lib/conversations';
+import { getAuthStore } from '../../../../lib/auth';
 
-export const POST: APIRoute = async ({ params, request, cookies, url }) => {
+export const POST: APIRoute = async ({ params, request, cookies, url, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: 'id requerido' }), {
@@ -11,7 +15,7 @@ export const POST: APIRoute = async ({ params, request, cookies, url }) => {
     });
   }
 
-  const thread = await defaultConversationStore.shareThread(id);
+  const thread = await convStore.shareThread(id);
   if (!thread) {
     return new Response(JSON.stringify({ error: 'Conversación no encontrada' }), {
       status: 404,
@@ -26,12 +30,12 @@ export const POST: APIRoute = async ({ params, request, cookies, url }) => {
       let studentInfo = { id: thread.userId, name: 'Estudiante' };
       const sessionToken = cookies.get('maxister_session')?.value;
       if (sessionToken) {
-        const user = await defaultAuthStore.validateSession(sessionToken);
+        const user = await authStore.validateSession(sessionToken);
         if (user) {
           studentInfo = { id: user.id, name: user.name };
         }
       }
-      await defaultConversationStore.importMessages(id, body.messages, studentInfo);
+      await convStore.importMessages(id, body.messages, studentInfo);
     }
   } catch {
     // Body is optional
@@ -43,4 +47,3 @@ export const POST: APIRoute = async ({ params, request, cookies, url }) => {
     headers: { 'Content-Type': 'application/json' },
   });
 };
-

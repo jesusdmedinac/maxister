@@ -236,6 +236,10 @@ export class InMemoryAuthStore {
     };
   }
 
+  async login(email: string, password: string): Promise<AuthResult> {
+    return this.authenticate(email, password);
+  }
+
   async authenticateRootAdmin(
     email: string,
     password: string,
@@ -477,6 +481,22 @@ export class InMemoryAuthStore {
 }
 
 export const defaultAuthStore = new InMemoryAuthStore();
+
+import { D1AuthStore } from './d1/auth';
+import { initializeD1Schema, type D1Database } from './d1/db';
+
+const d1AuthStoreCache = new WeakMap<object, D1AuthStore>();
+
+export function getAuthStore(db?: D1Database): InMemoryAuthStore | D1AuthStore {
+  if (!db) return defaultAuthStore;
+  let store = d1AuthStoreCache.get(db as object);
+  if (!store) {
+    initializeD1Schema(db);
+    store = new D1AuthStore(db);
+    d1AuthStoreCache.set(db as object, store);
+  }
+  return store;
+}
 
 export function extractCloudflareAccessEmail(request: Request): string | null {
   const email = request.headers.get('cf-access-authenticated-user-email');

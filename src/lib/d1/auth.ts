@@ -118,6 +118,10 @@ export class D1AuthStore {
     };
   }
 
+  async authenticate(email: string, password: string): Promise<AuthResult> {
+    return this.login(email, password);
+  }
+
   async createTeacher(params: {
     name: string;
     email: string;
@@ -204,6 +208,10 @@ export class D1AuthStore {
     }
 
     return true;
+  }
+
+  async setTeacherStatus(teacherId: string, isActive: boolean): Promise<boolean> {
+    return this.setTeacherActive(teacherId, isActive);
   }
 
   async getOrCreateDelegatedAdmin(email: string, name?: string): Promise<UserAccount> {

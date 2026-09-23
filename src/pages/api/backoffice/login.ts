@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { ROOT_ADMIN_EMAIL, ROOT_ADMIN_PASSWORD, ROOT_ADMIN_EMAILS, DEV_ROOT_ADMIN_EMAIL } from 'astro:env/server';
 import {
-  defaultAuthStore,
+  getAuthStore,
   extractCloudflareAccessEmail,
   authenticateDelegatedAdmin,
 } from '../../../lib/auth';
@@ -9,6 +9,8 @@ import {
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
   try {
     const runtimeEnv = (locals as any)?.runtime?.env;
+    const db = runtimeEnv?.DB;
+    const authStore = getAuthStore(db);
     const allowedEmails =
       ROOT_ADMIN_EMAILS ||
       runtimeEnv?.ROOT_ADMIN_EMAILS ||
@@ -18,7 +20,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     // 1. Check for incoming Cloudflare Access Header
     const cfAccessEmail = extractCloudflareAccessEmail(request);
     if (cfAccessEmail) {
-      const delegated = await authenticateDelegatedAdmin(cfAccessEmail, allowedEmails, defaultAuthStore);
+      const delegated = await authenticateDelegatedAdmin(cfAccessEmail, allowedEmails, authStore);
       if (!delegated.authorized || !delegated.user || !delegated.sessionToken) {
         return new Response(
           JSON.stringify({ error: delegated.error || 'Acceso delegado denegado' }),
@@ -52,7 +54,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         process.env.DEV_ROOT_ADMIN_EMAIL ||
         'admin@desde0.dev';
 
-      const delegated = await authenticateDelegatedAdmin(targetEmail, allowedEmails, defaultAuthStore);
+      const delegated = await authenticateDelegatedAdmin(targetEmail, allowedEmails, authStore);
       if (!delegated.authorized || !delegated.user || !delegated.sessionToken) {
         return new Response(
           JSON.stringify({ error: delegated.error || 'Acceso de desarrollo denegado' }),
@@ -94,7 +96,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       );
     }
 
-    const result = await defaultAuthStore.authenticateRootAdmin(email, password, {
+    const result = await authStore.authenticateRootAdmin(email, password, {
       rootEmail: envRootEmail,
       rootPassword: envRootPassword,
     });

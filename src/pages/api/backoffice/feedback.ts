@@ -1,25 +1,29 @@
 import type { APIRoute } from 'astro';
-import { defaultAuthStore } from '../../../lib/auth';
-import { defaultConversationStore } from '../../../lib/conversations';
+import { getAuthStore } from '../../../lib/auth';
+import { getConversationStore } from '../../../lib/conversations';
 
-async function requireRootAdmin(cookies: any) {
+async function requireRootAdmin(cookies: any, authStore: any) {
   const token = cookies.get('maxister_session')?.value;
   if (!token) return null;
-  const user = await defaultAuthStore.validateSession(token);
+  const user = await authStore.validateSession(token);
   if (!user || user.role !== 'root_admin') return null;
   return user;
 }
 
-async function requireTeacherOrAdmin(cookies: any) {
+async function requireTeacherOrAdmin(cookies: any, authStore: any) {
   const token = cookies.get('maxister_session')?.value;
   if (!token) return null;
-  const user = await defaultAuthStore.validateSession(token);
+  const user = await authStore.validateSession(token);
   if (!user || (user.role !== 'teacher' && user.role !== 'root_admin')) return null;
   return user;
 }
 
-export const GET: APIRoute = async ({ cookies, url }) => {
-  const admin = await requireRootAdmin(cookies);
+export const GET: APIRoute = async ({ cookies, url, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
+  const admin = await requireRootAdmin(cookies, authStore);
   if (!admin) {
     return new Response(JSON.stringify({ error: 'Acceso denegado' }), {
       status: 403,
@@ -31,7 +35,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const teacherId = url.searchParams.get('teacherId') || undefined;
   const status = (url.searchParams.get('status') as any) || undefined;
 
-  const entries = await defaultConversationStore.listTeacherFeedback({
+  const entries = await convStore.listTeacherFeedback({
     courseId,
     teacherId,
     status,
@@ -43,8 +47,12 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   });
 };
 
-export const POST: APIRoute = async ({ request, cookies }) => {
-  const admin = await requireRootAdmin(cookies);
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
+  const admin = await requireRootAdmin(cookies, authStore);
   if (!admin) {
     return new Response(JSON.stringify({ error: 'Acceso denegado' }), {
       status: 403,
@@ -54,7 +62,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   try {
     const body = await request.json();
-    const entry = await defaultConversationStore.addTeacherFeedback({
+    const entry = await convStore.addTeacherFeedback({
       teacherId: admin.id,
       teacherName: admin.name,
       studentId: 'general',
@@ -81,8 +89,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 };
 
-export const PATCH: APIRoute = async ({ request, cookies }) => {
-  const admin = await requireRootAdmin(cookies);
+export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
+  const admin = await requireRootAdmin(cookies, authStore);
   if (!admin) {
     return new Response(JSON.stringify({ error: 'Acceso denegado' }), {
       status: 403,
@@ -101,7 +113,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    const updated = await defaultConversationStore.updateTeacherFeedback(id, {
+    const updated = await convStore.updateTeacherFeedback(id, {
       status,
       qualityScore,
       adminReviewNotes,
@@ -126,8 +138,12 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
 };
 
-export const DELETE: APIRoute = async ({ request, cookies, url }) => {
-  const user = await requireTeacherOrAdmin(cookies);
+export const DELETE: APIRoute = async ({ request, cookies, url, locals }) => {
+  const db = (locals as any)?.runtime?.env?.DB;
+  const authStore = getAuthStore(db);
+  const convStore = getConversationStore(db);
+
+  const user = await requireTeacherOrAdmin(cookies, authStore);
   if (!user) {
     return new Response(JSON.stringify({ error: 'Acceso denegado' }), {
       status: 403,
@@ -153,7 +169,7 @@ export const DELETE: APIRoute = async ({ request, cookies, url }) => {
       });
     }
 
-    const success = await defaultConversationStore.deleteTeacherFeedback(id);
+    const success = await convStore.deleteTeacherFeedback(id);
     if (!success) {
       return new Response(JSON.stringify({ error: 'Directriz no encontrada' }), {
         status: 404,

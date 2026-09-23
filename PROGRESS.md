@@ -88,8 +88,8 @@
 - [x] Scenario: Delegated Root Admin authentication via Cloudflare Access headers without plain-text passwords
 - [x] Scenario: Unauthorized email rejected for Delegated Root Admin access
 - [x] Scenario: User registration, PBKDF2 hashing, and session persistence in D1
-- [ ] Scenario: Multi-thread conversations, message history, and room sharing in D1
-- [ ] Scenario: Teacher strategic feedback directives and revert lifecycle in D1
-- [ ] Scenario: Seamless fallback to in-memory store when D1 binding is absent
+- [x] Scenario: Multi-thread conversations, message history, and room sharing in D1
+- [x] Scenario: Teacher strategic feedback directives and revert lifecycle in D1
+- [x] Scenario: Seamless fallback to in-memory store when D1 binding is absent
 
 

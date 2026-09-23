@@ -1,14 +1,17 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { defaultAuthStore } from '../../../lib/auth';
+import { getAuthStore } from '../../../lib/auth';
 
 const loginSchema = z.object({
   email: z.string().email('Correo electrónico no válido'),
   password: z.string().min(1, 'La contraseña es requerida'),
 });
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+
     const body = await request.json();
     const parsed = loginSchema.safeParse(body);
 
@@ -20,7 +23,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     const { email, password } = parsed.data;
-    const result = await defaultAuthStore.authenticate(email, password);
+    const result = await authStore.authenticate(email, password);
 
     if (!result.success || !result.user || !result.sessionToken) {
       return new Response(JSON.stringify({ error: 'Credenciales inválidas. Verifica tu correo y contraseña.' }), {

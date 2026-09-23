@@ -1,8 +1,11 @@
 import type { APIRoute } from 'astro';
-import { defaultAuthStore } from '../../../lib/auth';
+import { getAuthStore } from '../../../lib/auth';
 
-export const POST: APIRoute = async ({ request, cookies, url }) => {
+export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+
     const sessionToken = cookies.get('maxister_session')?.value;
     if (!sessionToken) {
       return new Response(
@@ -11,7 +14,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       );
     }
 
-    const user = await defaultAuthStore.validateSession(sessionToken);
+    const user = await authStore.validateSession(sessionToken);
     if (!user) {
       return new Response(
         JSON.stringify({ error: 'Sesión expirada o inválida. Por favor, inicia sesión de nuevo.' }),
@@ -29,7 +32,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       );
     }
 
-    const snapshot = await defaultAuthStore.createSharedChat({
+    const snapshot = await authStore.createSharedChat({
       userId: user.id,
       studentName: user.name,
       studentEmail: user.email,
@@ -41,6 +44,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
 
     return new Response(
       JSON.stringify({
+        success: true,
         shareId: snapshot.id,
         shareUrl,
         snapshot,
@@ -55,8 +59,11 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   }
 };
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, locals }) => {
   try {
+    const db = (locals as any)?.runtime?.env?.DB;
+    const authStore = getAuthStore(db);
+
     const id = url.searchParams.get('id');
     if (!id) {
       return new Response(JSON.stringify({ error: 'Parámetro id es requerido' }), {
@@ -65,7 +72,7 @@ export const GET: APIRoute = async ({ url }) => {
       });
     }
 
-    const snapshot = await defaultAuthStore.getSharedChat(id);
+    const snapshot = await authStore.getSharedChat(id);
     if (!snapshot) {
       return new Response(JSON.stringify({ error: 'Conversación compartida no encontrada' }), {
         status: 404,
