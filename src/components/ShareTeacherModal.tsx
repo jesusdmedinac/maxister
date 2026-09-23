@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Share2, Copy, Check, ExternalLink, Mail, MessageSquare, Loader2, Sparkles, MessageCircle } from 'lucide-react';
 import type { UserAccount } from '../lib/auth';
 import type { ChatMessage } from '../lib/agent';
+import type { ConversationThread } from '../lib/conversations';
 
 interface Props {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface Props {
   activeCourse?: string;
   threadId?: string;
   onThreadCreated?: (threadId: string) => void;
+  onThreadShared?: (thread: ConversationThread) => void;
 }
 
 export default function ShareTeacherModal({
@@ -21,6 +23,7 @@ export default function ShareTeacherModal({
   activeCourse,
   threadId,
   onThreadCreated,
+  onThreadShared,
 }: Props) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +31,17 @@ export default function ShareTeacherModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && !shareUrl && user) {
+    if (!isOpen) {
+      setShareUrl(null);
+      setError(null);
+      setCopied(false);
+      return;
+    }
+
+    if (isOpen && user) {
+      setShareUrl(null);
+      setError(null);
+      setCopied(false);
       handleCreateShare();
     }
   }, [isOpen, user, threadId]);
@@ -50,6 +63,9 @@ export default function ShareTeacherModal({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error al compartir sala');
         setShareUrl(data.roomUrl);
+        if (data.thread) {
+          onThreadShared?.(data.thread);
+        }
       } else {
         const res = await fetch('/api/conversations', {
           method: 'POST',
@@ -66,6 +82,7 @@ export default function ShareTeacherModal({
         setShareUrl(data.roomUrl);
         if (data.thread?.id) {
           onThreadCreated?.(data.thread.id);
+          onThreadShared?.(data.thread);
         }
       }
     } catch (err: any) {

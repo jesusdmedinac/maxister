@@ -155,6 +155,14 @@ export default function App() {
 
   useEffect(() => {
     loadThreads();
+    if (!user) return;
+
+    // Periodic poll every 5s to discover newly shared rooms or thread updates
+    const interval = setInterval(() => {
+      loadThreads();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [user]);
 
   // Real-time synchronization polling when thread is active
@@ -934,6 +942,10 @@ export default function App() {
               if (data.thread) setActiveThread(data.thread);
             })
             .catch(() => {});
+          loadThreads();
+        }}
+        onThreadShared={(updatedThread) => {
+          setActiveThread(updatedThread);
           loadThreads();
         }}
       />

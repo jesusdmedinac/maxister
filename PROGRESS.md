@@ -77,4 +77,10 @@
 - [x] Scenario: Teacher reverts an auto-detected directive directly from the chat badge
 - [x] Scenario: Teacher home screen displays up to 4 latest unassigned student consultation rooms
 
+## 🔄 Feature 13: Multi-Room Sharing Synchronization & Live Teacher Inquiries Stream (`multi_room_sharing.feature`)
+- [x] Scenario: Student shares a second conversation thread after having previously shared another
+- [x] Scenario: Active conversation thread updates to shared state in UI upon sharing
+- [x] Scenario: Teacher dashboard dynamically polls and receives newly shared student rooms
+- [x] Scenario: Teacher views and navigates between multiple shared rooms from the same student
+
 
