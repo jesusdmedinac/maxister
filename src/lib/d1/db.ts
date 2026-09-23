@@ -107,14 +107,14 @@ CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_course_status ON teacher_feedback(course_id, status);
 `;
 
-let schemaInitialized = false;
+const initializedDbs = new WeakSet<object>();
 
 export async function initializeD1Schema(db: D1Database): Promise<void> {
-  if (schemaInitialized) return;
+  if (initializedDbs.has(db as object)) return;
   await db.exec(SCHEMA_SQL);
-  schemaInitialized = true;
-}
-
-export function resetSchemaInitFlagForTests(): void {
-  schemaInitialized = false;
+  try {
+    initializedDbs.add(db as object);
+  } catch {
+    // If not object, ignore
+  }
 }

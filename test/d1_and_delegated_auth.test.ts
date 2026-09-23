@@ -6,6 +6,7 @@ import {
   authenticateDelegatedAdmin,
   parseAllowedAdminEmails,
 } from '../src/lib/auth';
+import { D1AuthStore } from '../src/lib/d1/auth';
 
 describe('Feature 14: Cloudflare D1 Relational Persistence & Delegated Authentication', () => {
   let db: D1Database;
@@ -81,6 +82,67 @@ describe('Feature 14: Cloudflare D1 Relational Persistence & Delegated Authentic
       const result = await authenticateDelegatedAdmin(extractedEmail, allowedEmails);
       expect(result.authorized).toBe(false);
       expect(result.error).toBeDefined();
+    });
+  });
+
+  describe('Scenario 4: User registration, PBKDF2 hashing, and session persistence in D1', () => {
+    it('should register student, persist in users and sessions tables, and validate session in D1', async () => {
+      await initializeD1Schema(db);
+      const authStore = new D1AuthStore(db);
+
+      const regResult = await authStore.registerUser({
+        name: 'Carlos Estudiante',
+        email: 'student1@desde0.dev',
+        password: 'StudentPass123!',
+        activeCourse: 'para-no-programadores',
+      });
+
+      expect(regResult.success).toBe(true);
+      expect(regResult.user).toBeDefined();
+      expect(regResult.user?.email).toBe('student1@desde0.dev');
+      expect(regResult.sessionToken).toBeDefined();
+
+      // Verify row in SQLite table users
+      const userRow = await db
+        .prepare('SELECT * FROM users WHERE email = ?')
+        .bind('student1@desde0.dev')
+        .first<any>();
+
+      expect(userRow).toBeDefined();
+      expect(userRow.name).toBe('Carlos Estudiante');
+      expect(userRow.password_hash).toBeDefined();
+      expect(userRow.salt).toBeDefined();
+      expect(userRow.password_hash).not.toBe('StudentPass123!');
+
+      // Verify row in SQLite table sessions
+      const sessionRow = await db
+        .prepare('SELECT * FROM sessions WHERE token = ?')
+        .bind(regResult.sessionToken!)
+        .first<any>();
+
+      expect(sessionRow).toBeDefined();
+      expect(sessionRow.user_id).toBe(userRow.id);
+
+      // Validate session via authStore
+      const validated = await authStore.validateSession(regResult.sessionToken!);
+      expect(validated).toBeDefined();
+      expect(validated?.id).toBe(userRow.id);
+      expect(validated?.name).toBe('Carlos Estudiante');
+
+      // Login with valid credentials
+      const loginResult = await authStore.login('student1@desde0.dev', 'StudentPass123!');
+      expect(loginResult.success).toBe(true);
+      expect(loginResult.sessionToken).toBeDefined();
+
+      // Login with invalid password
+      const badLogin = await authStore.login('student1@desde0.dev', 'wrongPass');
+      expect(badLogin.success).toBe(false);
+
+      // Revoke session
+      const revoked = await authStore.revokeSession(regResult.sessionToken!);
+      expect(revoked).toBe(true);
+      const revalidated = await authStore.validateSession(regResult.sessionToken!);
+      expect(revalidated).toBeNull();
     });
   });
 });
