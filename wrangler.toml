@@ -1,0 +1,9 @@
+name = "maxister"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "maxister-db"
+database_id = "local-maxister-db"
+migrations_dir = "migrations"
